@@ -1,0 +1,26 @@
+# dependencies
+node_modules/
+.pnpm-store/
+
+# builds
+dist/
+build/
+*.tsbuildinfo
+
+# env
+.env
+.env.local
+.env.*.local
+
+# prisma
+backend/prisma/*.db
+backend/prisma/migrations/dev.db*
+
+# playwright
+/test-results/
+/playwright-report/
+
+# misc
+.DS_Store
+*.log
+.vite/
