@@ -4,6 +4,9 @@ import {
   OnApplicationBootstrap,
   OnModuleDestroy,
 } from '@nestjs/common';
+import { CardsService } from '../cards/cards.service';
+import { RenderService } from '../render/render.service';
+import { MailService } from '../mail/mail.service';
 
 /**
  * Abstraction over "run the send pipeline for cards whose time has come".
@@ -19,14 +22,25 @@ export interface CardScheduler {
   stop(): void;
 }
 
-const POLL_INTERVAL_MS = 60_000;
+const DEFAULT_POLL_INTERVAL_MS = 60_000;
+const CARD_SUBJECT = 'You have a card 🎉';
 
 @Injectable()
 export class SchedulerService
   implements CardScheduler, OnApplicationBootstrap, OnModuleDestroy
 {
   private readonly logger = new Logger(SchedulerService.name);
+  private readonly intervalMs = Number(
+    process.env.SCHEDULER_POLL_MS ?? DEFAULT_POLL_INTERVAL_MS,
+  );
   private timer: NodeJS.Timeout | null = null;
+  private running = false;
+
+  constructor(
+    private readonly cards: CardsService,
+    private readonly render: RenderService,
+    private readonly mail: MailService,
+  ) {}
 
   onApplicationBootstrap(): void {
     this.start();
@@ -38,12 +52,10 @@ export class SchedulerService
 
   start(): void {
     if (this.timer) return;
-    this.logger.log(
-      `Scheduler started (poll every ${POLL_INTERVAL_MS / 1000}s)`,
-    );
+    this.logger.log(`Scheduler started (poll every ${this.intervalMs / 1000}s)`);
     this.timer = setInterval(() => {
       void this.tick();
-    }, POLL_INTERVAL_MS);
+    }, this.intervalMs);
   }
 
   stop(): void {
@@ -54,13 +66,36 @@ export class SchedulerService
   }
 
   /**
-   * One poll cycle. Phase 3 fills this in:
-   *   1. find PENDING cards where sendAt <= now
-   *   2. render each to PNG (RenderService)
-   *   3. email it (MailService)
-   *   4. mark SENT / FAILED
+   * One poll cycle: find due PENDING cards, render each to a PNG, email it, and
+   * mark SENT/FAILED. Sequential and guarded so a slow cycle can't overlap the
+   * next. Retry/backoff on failure is a Phase 4 concern.
    */
   private async tick(): Promise<void> {
-    // TODO(phase-3): query due cards and run the send pipeline.
+    if (this.running) return;
+    this.running = true;
+    try {
+      const due = await this.cards.findDue(new Date());
+      if (due.length === 0) return;
+      this.logger.log(`Dispatching ${due.length} due card(s)`);
+
+      for (const card of due) {
+        try {
+          const png = await this.render.render(this.cards.designOf(card));
+          await this.mail.sendCard({
+            to: card.recipient,
+            subject: CARD_SUBJECT,
+            png,
+          });
+          await this.cards.markSent(card.id);
+          this.logger.log(`Sent card ${card.id} → ${card.recipient}`);
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          await this.cards.markFailed(card.id, msg);
+          this.logger.error(`Failed card ${card.id}: ${msg}`);
+        }
+      }
+    } finally {
+      this.running = false;
+    }
   }
 }

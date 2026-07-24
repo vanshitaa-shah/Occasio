@@ -67,20 +67,24 @@ Because both paths share this component, the emailed image is guaranteed identic
 **Every element is anchored by its CENTER `(x, y)`** so drag/transform behaves uniformly across
 shape kinds and text. Preserve that invariant when adding elements.
 
-### The send pipeline (currently stubbed)
+### The send pipeline (implemented — Phase 3)
 
-`SchedulerService`, `RenderService`, and `MailService` are deliberate **seams** behind
-interfaces — they currently `throw "not implemented until Phase 3"`. The design intent:
+`SchedulerService`, `RenderService`, and `MailService` are the send pipeline, each behind a
+single-method seam so the mechanism can change without touching callers:
 
-- `SchedulerService` polls `(status, sendAt)` on an interval (indexed in the schema) and is
-  written behind a `CardScheduler` interface so a durable-timer backend (e.g. Temporal) can drop
-  in later without changing callers.
-- `RenderService.render(design) → Buffer` and `MailService.sendCard()` are single-method seams so
-  the mechanism (headless browser, node-canvas; Nodemailer/Mailhog, a real provider) can change
-  behind them.
+- `SchedulerService` polls `(status, sendAt)` every `SCHEDULER_POLL_MS` (default 60s; indexed in
+  the schema). Each cycle is guarded (`running` flag) so a slow cycle can't overlap the next. It
+  is written behind a `CardScheduler` interface so a durable-timer backend (e.g. Temporal) can
+  drop in later. On error a card is marked `FAILED` (retry/backoff is Phase 4).
+- `RenderService.render(design) → Buffer` drives Playwright headless Chromium: one reused browser,
+  a fresh `context` per job, loads `${RENDER_BASE_URL}/render?design=…`, waits for
+  `window.__OCCASIO_READY__`, screenshots the canvas at `deviceScaleFactor: 2`. **Requires the
+  frontend to be served** at `RENDER_BASE_URL` (Vite dev server in dev).
+- `MailService.sendCard()` sends via Nodemailer to SMTP (`SMTP_HOST`/`SMTP_PORT`, Mailhog in dev),
+  embedding the PNG inline via a `cid`.
 
-When implementing these, keep them behind their existing interfaces. The `Card` CRUD API
-(`cards.controller` / `cards.service`) is real and working.
+Pipeline DB helpers live in `cards.service` (`findDue`, `markSent`, `markFailed`, `designOf`), not
+in the scheduler. The `Card` CRUD API (`cards.controller` / `cards.service`) is also real.
 
 ### Data flow
 
@@ -116,6 +120,7 @@ status: PENDING }` in Postgres → scheduler finds due PENDING cards → render 
 
 ## Roadmap context
 
-Phase 1 (scaffold + infra + Card model + stubs) is done — see [phases/phase-1.md](phases/phase-1.md).
-Phase 2: real editor + schedule form + wire `POST /cards`. Phase 3: implement the render/mail/poll
-pipeline. Phase 4: preview/edit/cancel + status UI.
+Phases 1–3 are done — see [phases/](phases/): Phase 1 (scaffold + infra + Card model + stubs),
+Phase 2 (editor + schedule form + `POST /cards`), Phase 3 (render/mail/poll pipeline). Phase 4:
+preview/edit/cancel + status UI, and optionally swap node-cron → Temporal and Mailhog → a real
+email provider.

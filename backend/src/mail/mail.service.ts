@@ -1,4 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
+import * as nodemailer from 'nodemailer';
+import type { Transporter } from 'nodemailer';
 
 export interface SendCardMailInput {
   to: string;
@@ -7,21 +9,32 @@ export interface SendCardMailInput {
   png: Buffer;
 }
 
+const CID = 'occasio-card';
+
 /**
  * Sends the rendered card via SMTP. v1 targets Mailhog (local inbox) through
  * Nodemailer; swap SMTP creds / provider via env without touching callers.
+ * The PNG is embedded inline (cid) so it renders in the email body.
  */
 @Injectable()
 export class MailService {
   private readonly logger = new Logger(MailService.name);
+  private readonly from =
+    process.env.SMTP_FROM ?? 'Occasio <no-reply@occasio.local>';
+  private readonly transporter: Transporter = nodemailer.createTransport({
+    host: process.env.SMTP_HOST ?? 'localhost',
+    port: Number(process.env.SMTP_PORT ?? 1025),
+    secure: false,
+  });
 
-  /**
-   * Phase 3 fills this in:
-   *   - nodemailer.createTransport({ host: SMTP_HOST, port: SMTP_PORT })
-   *   - attach the PNG inline (cid) and reference it in the HTML body
-   */
-  async sendCard(_input: SendCardMailInput): Promise<void> {
-    // TODO(phase-3): Nodemailer transport + inline PNG.
-    throw new Error('MailService.sendCard not implemented until Phase 3');
+  async sendCard({ to, subject, png }: SendCardMailInput): Promise<void> {
+    await this.transporter.sendMail({
+      from: this.from,
+      to,
+      subject,
+      html: `<p>You've received a card 🎉</p>
+             <img src="cid:${CID}" alt="Your card" style="max-width:100%;height:auto;border-radius:8px" />`,
+      attachments: [{ filename: 'card.png', content: png, cid: CID }],
+    });
   }
 }

@@ -32,6 +32,34 @@ export class CardsService {
     return this.toResponse(card);
   }
 
+  /** Cards whose time has come and are still waiting to be sent. */
+  async findDue(now: Date, take = 25): Promise<Card[]> {
+    return this.prisma.card.findMany({
+      where: { status: 'PENDING', sendAt: { lte: now } },
+      orderBy: { sendAt: 'asc' },
+      take,
+    });
+  }
+
+  async markSent(id: string): Promise<void> {
+    await this.prisma.card.update({
+      where: { id },
+      data: { status: 'SENT', sentAt: new Date(), error: null },
+    });
+  }
+
+  async markFailed(id: string, error: string): Promise<void> {
+    await this.prisma.card.update({
+      where: { id },
+      data: { status: 'FAILED', error: error.slice(0, 500) },
+    });
+  }
+
+  /** The design JSON as its typed shape (Prisma stores it as opaque Json). */
+  designOf(card: Card): CanvasDesign {
+    return card.design as unknown as CanvasDesign;
+  }
+
   private toResponse(card: Card): CardResponse {
     return {
       id: card.id,
