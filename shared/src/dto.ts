@@ -13,6 +13,13 @@ export interface CreateCardDto {
   design: CanvasDesign;
 }
 
+/** Fields that may be edited on a still-PENDING card. */
+export interface UpdateCardDto {
+  recipient?: string;
+  sendAt?: string;
+  design?: CanvasDesign;
+}
+
 /** A card as returned by the API. */
 export interface CardResponse {
   id: string;

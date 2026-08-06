@@ -1,4 +1,5 @@
 import { CanvasRenderer } from '../components/CanvasRenderer';
+import { AppHeader } from '../components/AppHeader';
 import { Toolbar } from '../components/Toolbar';
 import { PropertiesPanel } from '../components/PropertiesPanel';
 import { ScheduleForm } from '../components/ScheduleForm';
@@ -21,12 +22,7 @@ export function EditorPage() {
 
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-slate-100 text-slate-900">
-      <header className="border-b bg-white px-6 py-3">
-        <h1 className="text-lg font-semibold">Occasio</h1>
-        <p className="text-xs text-slate-500">
-          Design a card, then schedule it to be emailed as an image.
-        </p>
-      </header>
+      <AppHeader />
 
       <div className="grid min-h-0 flex-1 grid-cols-[220px_1fr_300px] gap-4 p-4">
         <aside className="overflow-y-auto rounded-xl bg-white p-4 shadow-sm">

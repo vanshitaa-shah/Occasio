@@ -1,8 +1,13 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ConflictException,
+} from '@nestjs/common';
 import type { Prisma, Card } from '@prisma/client';
 import type { CanvasDesign, CardResponse } from '@occasio/shared';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateCardBody } from './dto/create-card.dto';
+import { UpdateCardBody } from './dto/update-card.dto';
 
 @Injectable()
 export class CardsService {
@@ -30,6 +35,49 @@ export class CardsService {
     const card = await this.prisma.card.findUnique({ where: { id } });
     if (!card) throw new NotFoundException(`Card ${id} not found`);
     return this.toResponse(card);
+  }
+
+  /** Edit a still-PENDING card (recipient / sendAt / design). */
+  async update(id: string, body: UpdateCardBody): Promise<CardResponse> {
+    const card = await this.prisma.card.findUnique({ where: { id } });
+    if (!card) throw new NotFoundException(`Card ${id} not found`);
+    if (card.status !== 'PENDING') {
+      throw new ConflictException(`Only PENDING cards can be edited`);
+    }
+    const updated = await this.prisma.card.update({
+      where: { id },
+      data: {
+        ...(body.recipient !== undefined && { recipient: body.recipient }),
+        ...(body.sendAt !== undefined && { sendAt: new Date(body.sendAt) }),
+        ...(body.design !== undefined && {
+          design: body.design as unknown as Prisma.InputJsonValue,
+        }),
+      },
+    });
+    return this.toResponse(updated);
+  }
+
+  /** Cancel a card (removes it). */
+  async remove(id: string): Promise<void> {
+    try {
+      await this.prisma.card.delete({ where: { id } });
+    } catch {
+      throw new NotFoundException(`Card ${id} not found`);
+    }
+  }
+
+  /** Re-queue a FAILED card so the scheduler picks it up again. */
+  async retry(id: string): Promise<CardResponse> {
+    const card = await this.prisma.card.findUnique({ where: { id } });
+    if (!card) throw new NotFoundException(`Card ${id} not found`);
+    if (card.status !== 'FAILED') {
+      throw new ConflictException(`Only FAILED cards can be retried`);
+    }
+    const updated = await this.prisma.card.update({
+      where: { id },
+      data: { status: 'PENDING', error: null },
+    });
+    return this.toResponse(updated);
   }
 
   /** Cards whose time has come and are still waiting to be sent. */

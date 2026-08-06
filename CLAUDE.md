@@ -49,8 +49,9 @@ Three workspaces, one shared contract:
   `CardStatus`). It is **CommonJS with `.d.ts`** so both NestJS (CJS) and Vite (bundler) consume
   it without interop friction. Everything about "what a card is" lives here — change it here, not
   in a workspace copy.
-- **`frontend/`** — React 19 + Vite + Tailwind v3 + react-konva. Two routes only (`main.tsx`):
-  `/` (`EditorPage`) and `/render` (`RenderPage`).
+- **`frontend/`** — React 19 + Vite + Tailwind v3 + react-konva. Three routes (`main.tsx`):
+  `/` (`EditorPage`), `/scheduled` (`ScheduledPage` — status list + cancel/retry/edit), and
+  `/render` (`RenderPage`, the headless-render target).
 - **`backend/`** — NestJS. API + scheduler + render + mail all run **in one process** for v1.
 
 ### The CanvasRenderer is the crux
@@ -120,7 +121,8 @@ status: PENDING }` in Postgres → scheduler finds due PENDING cards → render 
 
 ## Roadmap context
 
-Phases 1–3 are done — see [phases/](phases/): Phase 1 (scaffold + infra + Card model + stubs),
-Phase 2 (editor + schedule form + `POST /cards`), Phase 3 (render/mail/poll pipeline). Phase 4:
-preview/edit/cancel + status UI, and optionally swap node-cron → Temporal and Mailhog → a real
-email provider.
+Phases 1–4 are done — see [phases/](phases/): Phase 1 (scaffold + infra + Card model + stubs),
+Phase 2 (editor + schedule form + `POST /cards`), Phase 3 (render/mail/poll pipeline), Phase 4
+(scheduled-cards status UI + cancel/retry/edit: `DELETE /cards/:id`, `POST /cards/:id/retry`,
+`PATCH /cards/:id`). Still optional/future: automatic retry+backoff, swap node-cron → Temporal
+and Mailhog → a real email provider (both already behind their seams).
