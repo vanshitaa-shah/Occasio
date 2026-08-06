@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import type { CardResponse, UpdateCardDto } from '@occasio/shared';
+import type { CardResponse } from '@occasio/shared';
 import { api } from '../lib/api';
 
 /**
@@ -43,13 +43,5 @@ export function useScheduledCards() {
     [refresh],
   );
 
-  const update = useCallback(
-    async (id: string, changes: UpdateCardDto) => {
-      await api.updateCard(id, changes);
-      await refresh();
-    },
-    [refresh],
-  );
-
-  return { cards, loading, error, refresh, cancel, retry, update };
+  return { cards, loading, error, refresh, cancel, retry };
 }

@@ -29,6 +29,12 @@ export function useCardDesign() {
     return null;
   }, [design, selectedId]);
 
+  /** Replace the whole working design (e.g. when loading a card to edit). */
+  const load = (next: CanvasDesign) => {
+    setDesign(next);
+    setSelectedId(null);
+  };
+
   const setTheme = (theme: ThemeId) => setDesign((d) => ({ ...d, theme }));
 
   const addShape = (kind: ShapeKind) => {
@@ -58,6 +64,7 @@ export function useCardDesign() {
     selectedId,
     selection,
     select: setSelectedId,
+    load,
     setTheme,
     addShape,
     updateElement,

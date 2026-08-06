@@ -1,8 +1,7 @@
-import { useState } from 'react';
-import type { CardResponse, UpdateCardDto } from '@occasio/shared';
+import { useNavigate } from 'react-router-dom';
+import type { CardResponse } from '@occasio/shared';
 import { CanvasRenderer } from '../CanvasRenderer';
 import { StatusBadge } from './StatusBadge';
-import { ScheduledCardEdit } from './ScheduledCardEdit';
 import { formatWhen } from '../../lib/datetime';
 
 const PREVIEW_WIDTH = 260;
@@ -11,16 +10,10 @@ interface ScheduledCardProps {
   card: CardResponse;
   onCancel: (id: string) => void;
   onRetry: (id: string) => void;
-  onUpdate: (id: string, changes: UpdateCardDto) => void;
 }
 
-export function ScheduledCard({
-  card,
-  onCancel,
-  onRetry,
-  onUpdate,
-}: ScheduledCardProps) {
-  const [editing, setEditing] = useState(false);
+export function ScheduledCard({ card, onCancel, onRetry }: ScheduledCardProps) {
+  const navigate = useNavigate();
   const scale = PREVIEW_WIDTH / card.design.width;
   const isPending = card.status === 'PENDING';
   const isFailed = card.status === 'FAILED';
@@ -56,44 +49,33 @@ export function ScheduledCard({
           </p>
         )}
 
-        {editing ? (
-          <ScheduledCardEdit
-            card={card}
-            onSave={(changes) => {
-              onUpdate(card.id, changes);
-              setEditing(false);
-            }}
-            onCancel={() => setEditing(false)}
-          />
-        ) : (
-          <div className="flex flex-wrap gap-2">
-            {isPending && (
-              <button
-                type="button"
-                onClick={() => setEditing(true)}
-                className="rounded border border-slate-200 px-2 py-1 text-xs text-slate-600 hover:bg-slate-50"
-              >
-                Edit
-              </button>
-            )}
-            {isFailed && (
-              <button
-                type="button"
-                onClick={() => onRetry(card.id)}
-                className="rounded border border-blue-200 px-2 py-1 text-xs text-blue-600 hover:bg-blue-50"
-              >
-                Retry
-              </button>
-            )}
+        <div className="flex flex-wrap gap-2">
+          {isPending && (
             <button
               type="button"
-              onClick={confirmCancel}
-              className="rounded border border-red-200 px-2 py-1 text-xs text-red-600 hover:bg-red-50"
+              onClick={() => navigate(`/?edit=${card.id}`)}
+              className="rounded border border-slate-200 px-2 py-1 text-xs text-slate-600 hover:bg-slate-50"
             >
-              {isPending ? 'Cancel' : 'Remove'}
+              Edit
             </button>
-          </div>
-        )}
+          )}
+          {isFailed && (
+            <button
+              type="button"
+              onClick={() => onRetry(card.id)}
+              className="rounded border border-blue-200 px-2 py-1 text-xs text-blue-600 hover:bg-blue-50"
+            >
+              Retry
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={confirmCancel}
+            className="rounded border border-red-200 px-2 py-1 text-xs text-red-600 hover:bg-red-50"
+          >
+            {isPending ? 'Cancel' : 'Remove'}
+          </button>
+        </div>
       </div>
     </div>
   );

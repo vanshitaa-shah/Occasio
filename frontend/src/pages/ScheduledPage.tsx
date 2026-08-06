@@ -4,8 +4,7 @@ import { ScheduledCard } from '../components/scheduled/ScheduledCard';
 import { useScheduledCards } from '../hooks/useScheduledCards';
 
 export function ScheduledPage() {
-  const { cards, loading, error, refresh, cancel, retry, update } =
-    useScheduledCards();
+  const { cards, loading, error, refresh, cancel, retry } = useScheduledCards();
 
   return (
     <div className="min-h-screen bg-slate-100 text-slate-900">
@@ -51,7 +50,6 @@ export function ScheduledPage() {
               card={card}
               onCancel={cancel}
               onRetry={retry}
-              onUpdate={update}
             />
           ))}
         </div>
