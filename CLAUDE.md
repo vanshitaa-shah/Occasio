@@ -49,12 +49,23 @@ Three workspaces, one shared contract:
   `CardStatus`). It is **CommonJS with `.d.ts`** so both NestJS (CJS) and Vite (bundler) consume
   it without interop friction. Everything about "what a card is" lives here — change it here, not
   in a workspace copy.
-- **`frontend/`** — React 19 + Vite + Tailwind v3 + react-konva. Three routes (`main.tsx`):
-  `/` (`EditorPage`; `/?edit=<id>` re-opens a PENDING card to edit its full design +
-  recipient + time, saving via `PATCH`), `/scheduled` (`ScheduledPage` — status list +
-  cancel/retry, Edit links to the editor), and `/render` (`RenderPage`, the headless-render
-  target).
-- **`backend/`** — NestJS. API + scheduler + render + mail all run **in one process** for v1.
+- **`frontend/`** — React 19 + Vite + Tailwind v3 + react-konva. Routes (`main.tsx`): `/`
+  (`EditorPage`; `/?edit=<id>` re-opens a PENDING card to edit its full design + recipient +
+  time, saving via `PATCH`) and `/scheduled` (`ScheduledPage`) are **protected** by
+  `RequireAuth`; `/login` + `/register` (`AuthPage`) are public; `/render` (`RenderPage`, the
+  headless-render target) is public. An `AuthLayout` root route wraps everything in
+  `AuthProvider` (`useAuth`); the token + user live in `localStorage` (`authStorage`) and the
+  API client attaches `Authorization: Bearer` and bounces to `/login` on a 401.
+- **`backend/`** — NestJS. Auth (JWT) + API + scheduler + render + mail all run **in one
+  process** for v1.
+
+### Auth & ownership
+
+`AuthModule` (JWT via `@nestjs/jwt`, passwords hashed with `bcryptjs`) exposes `POST
+/auth/register` and `/auth/login` → `{ token, user }`. `JwtAuthGuard` + the `@CurrentUser()`
+decorator protect the `Card` API; **every card is owned by a `User`** and all card queries are
+scoped by `userId` (you only ever see/act on your own cards). `JWT_SECRET` comes from env. The
+`/render` route stays unauthenticated so the headless browser can load it.
 
 ### The CanvasRenderer is the crux
 
@@ -84,7 +95,8 @@ single-method seam so the mechanism can change without touching callers:
   `window.__OCCASIO_READY__`, screenshots the canvas at `deviceScaleFactor: 2`. **Requires the
   frontend to be served** at `RENDER_BASE_URL` (Vite dev server in dev).
 - `MailService.sendCard()` sends via Nodemailer to SMTP (`SMTP_HOST`/`SMTP_PORT`, Mailhog in dev),
-  embedding the PNG inline via a `cid`.
+  embedding the PNG inline via a `cid`. The **`From` is the card owner's email** (passed by the
+  scheduler, which `include`s the `user` in `findDue`); the `To` is the card's `recipient`.
 
 Pipeline DB helpers live in `cards.service` (`findDue`, `markSent`, `markFailed`, `designOf`), not
 in the scheduler. The `Card` CRUD API (`cards.controller` / `cards.service`) is also real.
@@ -123,10 +135,10 @@ status: PENDING }` in Postgres → scheduler finds due PENDING cards → render 
 
 ## Roadmap context
 
-Phases 1–5 are done — see [phases/](phases/): Phase 1 (scaffold + infra + Card model + stubs),
+Phases 1–6 are done — see [phases/](phases/): Phase 1 (scaffold + infra + Card model + stubs),
 Phase 2 (editor + schedule form + `POST /cards`), Phase 3 (render/mail/poll pipeline), Phase 4
 (scheduled-cards status UI + cancel/retry: `DELETE /cards/:id`, `POST /cards/:id/retry`,
-`PATCH /cards/:id`), Phase 5 (edit a PENDING card's full canvas — Edit re-opens it in the
-editor and saves via `PATCH`, replacing the old email/date-only inline edit). Still
-optional/future: automatic retry+backoff, swap node-cron → Temporal and Mailhog → a real email
-provider (both already behind their seams).
+`PATCH /cards/:id`), Phase 5 (edit a PENDING card's full canvas in the editor), Phase 6 (JWT
+auth: register/login, per-user card ownership + scoping, and the email `From` = the owner's
+email). Still optional/future: automatic retry+backoff, swap node-cron → Temporal and Mailhog →
+a real email provider (both already behind their seams).

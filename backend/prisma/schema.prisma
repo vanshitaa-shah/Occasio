@@ -13,10 +13,22 @@ enum CardStatus {
   FAILED
 }
 
+/// A registered user. Their email is the sender ("From") of their cards.
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  createdAt    DateTime @default(now())
+  cards        Card[]
+}
+
 /// A scheduled greeting card. `design` holds the full CanvasDesign JSON
 /// (@occasio/shared) that the headless renderer rebuilds at send time.
+/// Owned by a User; `recipient` is the address the card is emailed to.
 model Card {
   id        String     @id @default(cuid())
+  userId    String
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
   recipient String
   sendAt    DateTime
   status    CardStatus @default(PENDING)
@@ -28,4 +40,5 @@ model Card {
 
   // The scheduler polls on (status, sendAt) — index it.
   @@index([status, sendAt])
+  @@index([userId])
 }

@@ -8,12 +8,14 @@ import { PropertiesPanel } from '../components/PropertiesPanel';
 import { ScheduleForm } from '../components/ScheduleForm';
 import { useCardDesign } from '../hooks/useCardDesign';
 import { useCanvasScale } from '../hooks/useCanvasScale';
+import { useAuth } from '../hooks/useAuth';
 import type { ScheduleEditing } from '../hooks/useScheduleCard';
 import { api } from '../lib/api';
 
 export function EditorPage() {
   const [params] = useSearchParams();
   const navigate = useNavigate();
+  const { user } = useAuth();
   const editId = params.get('edit');
 
   const {
@@ -112,9 +114,14 @@ export function EditorPage() {
             />
           </div>
           <div className="rounded-xl bg-white p-4 shadow-sm">
-            <h2 className="mb-3 text-sm font-semibold text-slate-700">
+            <h2 className="mb-1 text-sm font-semibold text-slate-700">
               {editing ? 'Update scheduled card' : 'Schedule'}
             </h2>
+            {user && (
+              <p className="mb-3 text-xs text-slate-400">
+                Sent from {user.email}
+              </p>
+            )}
             <ScheduleForm
               design={design}
               editing={editing}

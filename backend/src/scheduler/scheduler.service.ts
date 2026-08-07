@@ -83,11 +83,14 @@ export class SchedulerService
           const png = await this.render.render(this.cards.designOf(card));
           await this.mail.sendCard({
             to: card.recipient,
+            from: card.user.email,
             subject: CARD_SUBJECT,
             png,
           });
           await this.cards.markSent(card.id);
-          this.logger.log(`Sent card ${card.id} → ${card.recipient}`);
+          this.logger.log(
+            `Sent card ${card.id}: ${card.user.email} → ${card.recipient}`,
+          );
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err);
           await this.cards.markFailed(card.id, msg);

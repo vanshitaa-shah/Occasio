@@ -4,6 +4,8 @@ import type { Transporter } from 'nodemailer';
 
 export interface SendCardMailInput {
   to: string;
+  /** Sender address — the card owner's email. */
+  from: string;
   subject: string;
   /** The rendered card as a PNG buffer, embedded inline in the email body. */
   png: Buffer;
@@ -19,17 +21,15 @@ const CID = 'occasio-card';
 @Injectable()
 export class MailService {
   private readonly logger = new Logger(MailService.name);
-  private readonly from =
-    process.env.SMTP_FROM ?? 'Occasio <no-reply@occasio.local>';
   private readonly transporter: Transporter = nodemailer.createTransport({
     host: process.env.SMTP_HOST ?? 'localhost',
     port: Number(process.env.SMTP_PORT ?? 1025),
     secure: false,
   });
 
-  async sendCard({ to, subject, png }: SendCardMailInput): Promise<void> {
+  async sendCard({ to, from, subject, png }: SendCardMailInput): Promise<void> {
     await this.transporter.sendMail({
-      from: this.from,
+      from,
       to,
       subject,
       html: `<p>You've received a card 🎉</p>

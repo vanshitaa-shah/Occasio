@@ -3,6 +3,24 @@ import type { CanvasDesign } from "./canvas";
 /** Lifecycle of a scheduled card. */
 export type CardStatus = "PENDING" | "SENT" | "FAILED";
 
+/** Credentials for register / login. */
+export interface AuthCredentialsDto {
+  email: string;
+  password: string;
+}
+
+/** The authenticated user (never includes the password hash). */
+export interface AuthUser {
+  id: string;
+  email: string;
+}
+
+/** Response from register / login: a bearer token plus the user. */
+export interface AuthResponse {
+  token: string;
+  user: AuthUser;
+}
+
 /** Request body for creating (scheduling) a card. */
 export interface CreateCardDto {
   /** Recipient email address. */

@@ -7,47 +7,64 @@ import {
   Param,
   Patch,
   Post,
+  UseGuards,
 } from '@nestjs/common';
 import type { CardResponse } from '@occasio/shared';
 import { CardsService } from './cards.service';
 import { CreateCardBody } from './dto/create-card.dto';
 import { UpdateCardBody } from './dto/update-card.dto';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { CurrentUser, type AuthedUser } from '../auth/current-user.decorator';
 
 @Controller('cards')
+@UseGuards(JwtAuthGuard)
 export class CardsController {
   constructor(private readonly cards: CardsService) {}
 
   @Post()
-  create(@Body() body: CreateCardBody): Promise<CardResponse> {
-    return this.cards.create(body);
+  create(
+    @CurrentUser() user: AuthedUser,
+    @Body() body: CreateCardBody,
+  ): Promise<CardResponse> {
+    return this.cards.create(user.userId, body);
   }
 
   @Get()
-  findAll(): Promise<CardResponse[]> {
-    return this.cards.findAll();
+  findAll(@CurrentUser() user: AuthedUser): Promise<CardResponse[]> {
+    return this.cards.findAll(user.userId);
   }
 
   @Get(':id')
-  findOne(@Param('id') id: string): Promise<CardResponse> {
-    return this.cards.findOne(id);
+  findOne(
+    @CurrentUser() user: AuthedUser,
+    @Param('id') id: string,
+  ): Promise<CardResponse> {
+    return this.cards.findOne(user.userId, id);
   }
 
   @Patch(':id')
   update(
+    @CurrentUser() user: AuthedUser,
     @Param('id') id: string,
     @Body() body: UpdateCardBody,
   ): Promise<CardResponse> {
-    return this.cards.update(id, body);
+    return this.cards.update(user.userId, id, body);
   }
 
   @Post(':id/retry')
-  retry(@Param('id') id: string): Promise<CardResponse> {
-    return this.cards.retry(id);
+  retry(
+    @CurrentUser() user: AuthedUser,
+    @Param('id') id: string,
+  ): Promise<CardResponse> {
+    return this.cards.retry(user.userId, id);
   }
 
   @Delete(':id')
   @HttpCode(204)
-  remove(@Param('id') id: string): Promise<void> {
-    return this.cards.remove(id);
+  remove(
+    @CurrentUser() user: AuthedUser,
+    @Param('id') id: string,
+  ): Promise<void> {
+    return this.cards.remove(user.userId, id);
   }
 }
