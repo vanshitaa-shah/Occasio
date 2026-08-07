@@ -26,7 +26,7 @@ export class RenderService implements OnModuleDestroy {
   }
 
   /** Render a design to a PNG buffer at 2× for a crisp email image. */
-  async render(design: CanvasDesign): Promise<Buffer> {
+  async render(design: CanvasDesign, sentBy?: string): Promise<Buffer> {
     const browser = await this.getBrowser();
     const context = await browser.newContext({
       viewport: { width: design.width, height: design.height },
@@ -34,9 +34,12 @@ export class RenderService implements OnModuleDestroy {
     });
     try {
       const page = await context.newPage();
+      const sentByParam = sentBy
+        ? `&sentBy=${encodeURIComponent(sentBy)}`
+        : '';
       const url = `${this.baseUrl}/render?design=${encodeURIComponent(
         JSON.stringify(design),
-      )}`;
+      )}${sentByParam}`;
       await page.goto(url, { waitUntil: 'load' });
       await page.waitForFunction('window.__OCCASIO_READY__ === true', {
         timeout: READY_TIMEOUT_MS,

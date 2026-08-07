@@ -1,5 +1,5 @@
 import { useLayoutEffect } from 'react';
-import { Stage, Layer, Rect, Transformer } from 'react-konva';
+import { Stage, Layer, Rect, Text, Transformer } from 'react-konva';
 import type Konva from 'konva';
 import type { CanvasDesign } from '@occasio/shared';
 import { THEMES } from '@occasio/shared';
@@ -19,7 +19,11 @@ export interface CanvasRendererProps {
   onReady?: () => void;
   /** Optional scale so the same design fits smaller preview boxes. */
   scale?: number;
+  /** Owner's email, rendered as a fixed non-editable "Sent by" footer. */
+  sentBy?: string;
 }
+
+const FOOTER_HEIGHT = 40;
 
 /**
  * The single source of truth for turning a CanvasDesign into pixels. The editor
@@ -34,6 +38,7 @@ export function CanvasRenderer({
   onChangeElement,
   onReady,
   scale = 1,
+  sentBy,
 }: CanvasRendererProps) {
   const theme = THEMES[design.theme];
   const { trRef, register } = useCanvasTransformer(design, selectedId);
@@ -103,6 +108,33 @@ export function CanvasRenderer({
               newBox.width < 10 || newBox.height < 10 ? oldBox : newBox
             }
           />
+        )}
+
+        {/* Fixed, non-editable attribution footer (not part of the design). */}
+        {sentBy && (
+          <>
+            <Rect
+              x={0}
+              y={design.height - FOOTER_HEIGHT}
+              width={design.width}
+              height={FOOTER_HEIGHT}
+              fill="rgba(0,0,0,0.4)"
+              listening={false}
+            />
+            <Text
+              x={0}
+              y={design.height - FOOTER_HEIGHT}
+              width={design.width}
+              height={FOOTER_HEIGHT}
+              text={`Sent by: ${sentBy}`}
+              fontSize={16}
+              fontFamily="Arial, sans-serif"
+              fill="#ffffff"
+              align="center"
+              verticalAlign="middle"
+              listening={false}
+            />
+          </>
         )}
       </Layer>
     </Stage>

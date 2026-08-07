@@ -3,6 +3,7 @@ import type { CardResponse } from '@occasio/shared';
 import { CanvasRenderer } from '../CanvasRenderer';
 import { StatusBadge } from './StatusBadge';
 import { formatWhen } from '../../lib/datetime';
+import { useAuth } from '../../hooks/useAuth';
 
 const PREVIEW_WIDTH = 260;
 
@@ -14,6 +15,7 @@ interface ScheduledCardProps {
 
 export function ScheduledCard({ card, onCancel, onRetry }: ScheduledCardProps) {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const scale = PREVIEW_WIDTH / card.design.width;
   const isPending = card.status === 'PENDING';
   const isFailed = card.status === 'FAILED';
@@ -30,7 +32,7 @@ export function ScheduledCard({ card, onCancel, onRetry }: ScheduledCardProps) {
         className="bg-slate-50"
         style={{ width: PREVIEW_WIDTH, height: card.design.height * scale }}
       >
-        <CanvasRenderer design={card.design} scale={scale} />
+        <CanvasRenderer design={card.design} scale={scale} sentBy={user?.email} />
       </div>
 
       <div className="space-y-2 p-3" style={{ width: PREVIEW_WIDTH }}>

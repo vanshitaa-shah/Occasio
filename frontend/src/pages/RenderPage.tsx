@@ -12,6 +12,7 @@ import { CanvasRenderer } from '../components/CanvasRenderer';
 export function RenderPage() {
   const [params] = useSearchParams();
   const raw = params.get('design');
+  const sentBy = params.get('sentBy') ?? undefined;
 
   let design: CanvasDesign | null = null;
   if (raw) {
@@ -35,7 +36,7 @@ export function RenderPage() {
       id="occasio-render-root"
       style={{ width: design.width, height: design.height }}
     >
-      <CanvasRenderer design={design} onReady={handleReady} />
+      <CanvasRenderer design={design} sentBy={sentBy} onReady={handleReady} />
     </div>
   );
 }

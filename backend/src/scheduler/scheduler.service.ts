@@ -80,10 +80,13 @@ export class SchedulerService
 
       for (const card of due) {
         try {
-          const png = await this.render.render(this.cards.designOf(card));
+          const png = await this.render.render(
+            this.cards.designOf(card),
+            card.user.email,
+          );
           await this.mail.sendCard({
             to: card.recipient,
-            from: card.user.email,
+            replyTo: card.user.email,
             subject: CARD_SUBJECT,
             png,
           });

@@ -101,6 +101,7 @@ export function EditorPage() {
               selectedId={selectedId}
               onSelect={select}
               onChangeElement={updateElement}
+              sentBy={user?.email}
             />
           </div>
         </main>
@@ -117,11 +118,9 @@ export function EditorPage() {
             <h2 className="mb-1 text-sm font-semibold text-slate-700">
               {editing ? 'Update scheduled card' : 'Schedule'}
             </h2>
-            {user && (
-              <p className="mb-3 text-xs text-slate-400">
-                Sent from {user.email}
-              </p>
-            )}
+            <p className="mb-3 text-xs text-slate-400">
+              Replies go to your email; the card is signed with it.
+            </p>
             <ScheduleForm
               design={design}
               editing={editing}

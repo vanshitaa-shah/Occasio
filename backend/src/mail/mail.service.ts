@@ -4,8 +4,8 @@ import type { Transporter } from 'nodemailer';
 
 export interface SendCardMailInput {
   to: string;
-  /** Sender address — the card owner's email. */
-  from: string;
+  /** Reply-To = the card owner's email (we can't send *as* them; see below). */
+  replyTo: string;
   subject: string;
   /** The rendered card as a PNG buffer, embedded inline in the email body. */
   png: Buffer;
@@ -14,22 +14,38 @@ export interface SendCardMailInput {
 const CID = 'occasio-card';
 
 /**
- * Sends the rendered card via SMTP. v1 targets Mailhog (local inbox) through
- * Nodemailer; swap SMTP creds / provider via env without touching callers.
- * The PNG is embedded inline (cid) so it renders in the email body.
+ * Sends the rendered card via SMTP. Works with any SMTP provider (Mailhog in
+ * dev; Resend/SendGrid/Brevo/etc. in prod) via env — set SMTP_HOST/PORT and,
+ * for real providers, SMTP_USER/SMTP_PASS/SMTP_SECURE.
+ *
+ * Email can't be sent *as* an arbitrary user's address (SPF/DKIM/DMARC), so the
+ * `From` is a fixed, verified sender we control (SMTP_FROM) and the owner's
+ * address is set as `Reply-To`. The visible "Sent by: <owner>" attribution
+ * lives in the rendered card image instead.
  */
 @Injectable()
 export class MailService {
   private readonly logger = new Logger(MailService.name);
+  private readonly from =
+    process.env.SMTP_FROM ?? 'Occasio <no-reply@occasio.local>';
   private readonly transporter: Transporter = nodemailer.createTransport({
     host: process.env.SMTP_HOST ?? 'localhost',
     port: Number(process.env.SMTP_PORT ?? 1025),
-    secure: false,
+    secure: process.env.SMTP_SECURE === 'true',
+    ...(process.env.SMTP_USER
+      ? {
+          auth: {
+            user: process.env.SMTP_USER,
+            pass: process.env.SMTP_PASS,
+          },
+        }
+      : {}),
   });
 
-  async sendCard({ to, from, subject, png }: SendCardMailInput): Promise<void> {
+  async sendCard({ to, replyTo, subject, png }: SendCardMailInput): Promise<void> {
     await this.transporter.sendMail({
-      from,
+      from: this.from,
+      replyTo,
       to,
       subject,
       html: `<p>You've received a card 🎉</p>

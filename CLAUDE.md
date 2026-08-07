@@ -94,9 +94,11 @@ single-method seam so the mechanism can change without touching callers:
   a fresh `context` per job, loads `${RENDER_BASE_URL}/render?design=…`, waits for
   `window.__OCCASIO_READY__`, screenshots the canvas at `deviceScaleFactor: 2`. **Requires the
   frontend to be served** at `RENDER_BASE_URL` (Vite dev server in dev).
-- `MailService.sendCard()` sends via Nodemailer to SMTP (`SMTP_HOST`/`SMTP_PORT`, Mailhog in dev),
-  embedding the PNG inline via a `cid`. The **`From` is the card owner's email** (passed by the
-  scheduler, which `include`s the `user` in `findDue`); the `To` is the card's `recipient`.
+- `MailService.sendCard()` sends via Nodemailer over SMTP (`SMTP_HOST`/`SMTP_PORT` + optional
+  `SMTP_USER`/`SMTP_PASS`/`SMTP_SECURE`; Mailhog in dev, any provider in prod), embedding the PNG
+  inline via a `cid`. You can't send **as** an arbitrary user (SPF/DKIM/DMARC), so `From` is a
+  fixed verified sender (`SMTP_FROM`), `Reply-To` is the owner's email, and the owner is shown
+  via the "Sent by" footer baked into the card image. `To` is the card's `recipient`.
 
 Pipeline DB helpers live in `cards.service` (`findDue`, `markSent`, `markFailed`, `designOf`), not
 in the scheduler. The `Card` CRUD API (`cards.controller` / `cards.service`) is also real.
@@ -139,6 +141,7 @@ Phases 1–6 are done — see [phases/](phases/): Phase 1 (scaffold + infra + Ca
 Phase 2 (editor + schedule form + `POST /cards`), Phase 3 (render/mail/poll pipeline), Phase 4
 (scheduled-cards status UI + cancel/retry: `DELETE /cards/:id`, `POST /cards/:id/retry`,
 `PATCH /cards/:id`), Phase 5 (edit a PENDING card's full canvas in the editor), Phase 6 (JWT
-auth: register/login, per-user card ownership + scoping, and the email `From` = the owner's
-email). Still optional/future: automatic retry+backoff, swap node-cron → Temporal and Mailhog →
+auth: register/login, per-user card ownership + scoping), Phase 7 (real SMTP sending: fixed
+verified `From` + `Reply-To` = owner, a non-editable "Sent by: <owner>" footer baked into the
+card via `CanvasRenderer`'s `sentBy` prop). Still optional/future: automatic retry+backoff, swap node-cron → Temporal and Mailhog →
 a real email provider (both already behind their seams).
