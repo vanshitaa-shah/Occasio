@@ -1,9 +1,12 @@
+# Never bake local secrets/state into the image. Note: patterns are matched at
+# every level, so **/.env excludes backend/.env too (root-only .env would not).
 **/node_modules
 **/dist
 **/.vite
 .git
-.env
-.env.*
+**/.env
+**/.env.*
+# ...but the frontend needs its (secret-free) production build config.
 !frontend/.env.production
 **/*.log
 test-results
