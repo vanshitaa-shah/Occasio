@@ -14,13 +14,19 @@ const READY_TIMEOUT_MS = 15_000;
 @Injectable()
 export class RenderService implements OnModuleDestroy {
   private readonly logger = new Logger(RenderService.name);
+  // In prod (single service) the SPA is served by this same process, so we
+  // render against ourselves; RENDER_BASE_URL overrides (e.g. Vite in dev).
   private readonly baseUrl =
-    process.env.RENDER_BASE_URL ?? 'http://localhost:5173';
+    process.env.RENDER_BASE_URL ??
+    `http://localhost:${process.env.PORT ?? 3001}`;
   private browser: Browser | null = null;
 
   private async getBrowser(): Promise<Browser> {
     if (!this.browser) {
-      this.browser = await chromium.launch();
+      // --no-sandbox is required to run Chromium as root in a container.
+      this.browser = await chromium.launch({
+        args: ['--no-sandbox', '--disable-dev-shm-usage'],
+      });
     }
     return this.browser;
   }

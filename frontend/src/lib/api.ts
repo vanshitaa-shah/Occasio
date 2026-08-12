@@ -7,7 +7,9 @@ import type {
 } from '@occasio/shared';
 import { authStorage } from './authStorage';
 
-const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:3001';
+// Dev: talk to the backend on :3001. Prod: same-origin '/api' (see .env.production).
+const BASE_URL =
+  import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:3001/api';
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const headers: Record<string, string> = {

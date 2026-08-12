@@ -5,6 +5,8 @@ import { AppModule } from './app.module';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
+  // All API routes live under /api; everything else is the served SPA (prod).
+  app.setGlobalPrefix('api');
   // Frontend (Vite) runs on a different origin during dev.
   app.enableCors({ origin: true });
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
