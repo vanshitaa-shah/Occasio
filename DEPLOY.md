@@ -1,4 +1,4 @@
-# Deploying Occasio (Render + Resend)
+# Deploying Occasio (Render + Brevo)
 
 Occasio deploys as **one Docker web service** (NestJS API + node-cron scheduler +
 Playwright/Chromium render, which also serves the React SPA) plus a **managed
@@ -13,34 +13,38 @@ and emails them via your SMTP provider.
 ## 1. Prerequisites
 
 - The repo pushed to GitHub (Render deploys from a repo).
-- A **domain you control** (for a verified email sender).
-- A [Render](https://render.com) account and a [Resend](https://resend.com) account
-  (free tiers are fine). Any SMTP provider works; Resend is used here.
+- A [Render](https://render.com) account and a [Brevo](https://brevo.com) account
+  (free tiers are fine — Brevo's free plan sends up to 300 emails/day at no cost).
+  Any SMTP provider works; Brevo is used here.
+- Either a domain you control (best deliverability) or just an email address you can
+  click a confirmation link on (single-sender verification — no domain needed).
 
-## 2. Set up the email sender (Resend)
+## 2. Set up the email sender (Brevo)
 
 Real inboxes reject mail sent *as* an address you don't control (SPF/DKIM/DMARC),
-so we send from **your** verified domain and put the user in `Reply-To` + the
+so we send from **your** verified sender and put the user in `Reply-To` + the
 "Sent by" line on the card.
 
-1. Resend → **Domains → Add Domain** → enter `yourdomain.com`.
-2. Add the shown **DNS records** (SPF/DKIM, and DMARC) at your registrar; wait for
-   **Verified**.
-3. Resend → **API Keys → Create** → copy the key (starts `re_...`).
-4. Decide your sender, e.g. `Occasio <no-reply@yourdomain.com>`.
-
-(No domain yet? Use SendGrid/Brevo **single-sender** verification instead and set
-`SMTP_HOST`/`SMTP_USER` accordingly — see `.env.example`. Deliverability to Gmail
-is better with a verified domain.)
+1. Brevo → **Senders, Domains & Dedicated IPs → Senders** → **Add a sender** → enter
+   an email you control and a display name (e.g. `Occasio <no-reply@yourdomain.com>`
+   or, for a quick demo, your own address).
+2. Brevo emails a confirmation link to that address — click it; the sender shows
+   **Verified**. (Optional: verify a full domain instead by adding the shown SPF/DKIM
+   DNS records at your registrar — better deliverability, not required to send.)
+3. Brevo → **SMTP & API → SMTP tab** → **Generate a new SMTP key** → copy it
+   immediately (shown once; this is *not* the same as a Brevo API key).
+4. Your `SMTP_USER` is your **Brevo account login email** (not a fixed string).
+   `SMTP_FROM` must exactly match the sender you verified in step 1.
 
 ## 3. Deploy to Render
 
 1. Render → **New → Blueprint** → connect this repo. Render reads `render.yaml`
    and provisions the **web service** + **Postgres**.
-2. `DATABASE_URL` and `JWT_SECRET` are wired automatically. Set the two secrets in
+2. `DATABASE_URL` and `JWT_SECRET` are wired automatically. Set the three secrets in
    the service's **Environment** tab:
-   - `SMTP_PASS` = your Resend API key
-   - `SMTP_FROM` = `Occasio <no-reply@yourdomain.com>` (must match the verified domain)
+   - `SMTP_USER` = your Brevo account login email
+   - `SMTP_PASS` = your Brevo SMTP key
+   - `SMTP_FROM` = `Occasio <no-reply@yourdomain.com>` (must match the verified sender)
 3. **Create / Apply**. The build runs the `Dockerfile`; on start it runs
    `prisma migrate deploy` then boots. Watch logs for
    `Occasio backend listening` and `Scheduler started`.

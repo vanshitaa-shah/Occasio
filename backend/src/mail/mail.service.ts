@@ -15,7 +15,7 @@ const CID = 'occasio-card';
 
 /**
  * Sends the rendered card via SMTP. Works with any SMTP provider (Mailhog in
- * dev; Resend/SendGrid/Brevo/etc. in prod) via env — set SMTP_HOST/PORT and,
+ * dev; Brevo/SendGrid/Resend/etc. in prod) via env — set SMTP_HOST/PORT and,
  * for real providers, SMTP_USER/SMTP_PASS/SMTP_SECURE.
  *
  * Email can't be sent *as* an arbitrary user's address (SPF/DKIM/DMARC), so the

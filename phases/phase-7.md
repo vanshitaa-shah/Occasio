@@ -31,7 +31,8 @@ Email has anti-spoofing (SPF/DKIM/DMARC): a shared server can't send **as**
 ## Going live with a real provider (free tiers)
 
 Set env to your provider's SMTP + a **verified** sender (see `.env.example`):
-- **Resend**: `smtp.resend.com:465` secure, user `resend`, pass = API key.
+- **Brevo**: `smtp-relay.brevo.com:587`, user = Brevo account login email, pass = SMTP key
+  (used in production — see Phase 8 / `DEPLOY.md`).
 - **SendGrid**: `smtp.sendgrid.net:587`, user `apikey`, pass = API key.
 
 Requires a domain (or single-sender) verified with the provider. Dev stays on
