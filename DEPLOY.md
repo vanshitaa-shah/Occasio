@@ -48,16 +48,28 @@ so we send from **your** verified sender and put the user in `Reply-To` + the
 3. **Create / Apply**. The build runs the `Dockerfile`; on start it runs
    `prisma migrate deploy` then boots. Watch logs for
    `Occasio backend listening` and `Scheduler started`.
-4. Open the service URL → **Register** → design a card → schedule it a couple of
+4. **Keep it awake (required on the free plan).** Render's free web tier sleeps
+   after ~15 min with no HTTP traffic, which would stall the scheduler. Set up a
+   free external pinger to hit `https://<your-service>.onrender.com/api/health`
+   every 10 minutes — e.g. [UptimeRobot](https://uptimerobot.com) or
+   [cron-job.org](https://cron-job.org) (both have free tiers), or a scheduled
+   GitHub Actions workflow (`curl` on a `schedule: cron` trigger). This costs
+   nothing but is a real external dependency — if the pinger stops, the service
+   sleeps again and sends resume only once something wakes it.
+5. Open the service URL → **Register** → design a card → schedule it a couple of
    minutes out → it arrives in the recipient's real inbox.
 
 ## 4. Important notes
 
-- **Always-on:** the scheduler only runs while the service is awake. Render's
-  **free** web tier sleeps on idle — `render.yaml` uses the `starter` plan so it
-  stays up. On a sleeping plan, sends are delayed until the next request wakes it.
-- **Memory:** Chromium needs RAM; the `starter` instance is enough for one render
-  at a time (renders run sequentially).
+- **Free plan tradeoffs:** `render.yaml` uses `plan: free` for a $0 demo, relying
+  on the keep-alive ping above to stay awake. This is fine for demoing but not a
+  guarantee — Render can still restart/evict a free instance, and there's no SLA.
+  For anything real, switch `render.yaml` to `plan: starter` (paid, genuinely
+  always-on, no ping needed) — see the comment inline in the file.
+- **Memory:** the free plan gives 512MB RAM. Playwright/Chromium fits for a
+  single render at a time (renders already run sequentially), but it's tight —
+  if you see the process get OOM-killed under any concurrent load, that's the
+  free tier's ceiling, not a bug; upgrading to `starter` fixes it.
 - **Free Postgres** on Render expires after 90 days — upgrade the DB plan for
   anything real.
 - **Poll interval:** default 60s. Set `SCHEDULER_POLL_MS` if you want it snappier.

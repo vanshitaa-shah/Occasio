@@ -1,14 +1,17 @@
 # Render blueprint — deploy Occasio as one Docker web service + managed Postgres.
-# In Render: New → Blueprint → connect this repo. Then set the two secret env
-# vars (SMTP_PASS, SMTP_FROM) in the dashboard. See DEPLOY.md.
+# In Render: New → Blueprint → connect this repo. Then set the three secret env
+# vars (SMTP_USER, SMTP_PASS, SMTP_FROM) in the dashboard. See DEPLOY.md.
 services:
   - type: web
     name: occasio
     runtime: docker
     dockerfilePath: ./Dockerfile
-    # The scheduler polls continuously, so the service must stay awake.
-    # Render's free web tier SLEEPS on idle → use a paid always-on plan.
-    plan: starter
+    # Free plan for a $0 demo. The scheduler polls continuously and Render's
+    # free web tier SLEEPS after ~15min idle, so this relies on an external
+    # keep-alive ping hitting healthCheckPath (see DEPLOY.md step 4) — without
+    # it, sends are delayed until the next request wakes the service. For
+    # real production use, switch this to `plan: starter` instead.
+    plan: free
     healthCheckPath: /api/health
     envVars:
       - key: NODE_ENV
