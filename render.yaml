@@ -1,6 +1,6 @@
 # Render blueprint — deploy Occasio as one Docker web service + managed Postgres.
-# In Render: New → Blueprint → connect this repo. Then set the three secret env
-# vars (SMTP_USER, SMTP_PASS, SMTP_FROM) in the dashboard. See DEPLOY.md.
+# In Render: New → Blueprint → connect this repo. Then set the four secret env
+# vars (BREVO_API_KEY, SMTP_USER, SMTP_PASS, SMTP_FROM) in the dashboard. See DEPLOY.md.
 services:
   - type: web
     name: occasio
@@ -24,7 +24,8 @@ services:
         fromDatabase:
           name: occasio-db
           property: connectionString
-      # ---- Email (Brevo SMTP relay; any SMTP provider works) ----
+      # ---- Email (Brevo HTTP API; outbound SMTP is blocked on Render's free
+      # plan, so BREVO_API_KEY set takes priority over SMTP — see mail.service.ts) ----
       - key: SMTP_HOST
         value: smtp-relay.brevo.com
       - key: SMTP_PORT
@@ -32,9 +33,11 @@ services:
       - key: SMTP_SECURE
         value: "false"
       # Secrets — set these in the Render dashboard (not in git):
-      - key: SMTP_USER # your Brevo account login email
+      - key: BREVO_API_KEY # Brevo → SMTP & API → API Keys tab (NOT the SMTP key)
         sync: false
-      - key: SMTP_PASS # your Brevo SMTP key (SMTP & API → SMTP tab)
+      - key: SMTP_USER # your Brevo account login email (SMTP fallback only)
+        sync: false
+      - key: SMTP_PASS # your Brevo SMTP key (SMTP fallback only)
         sync: false
       - key: SMTP_FROM # e.g. "Occasio <no-reply@yourdomain.com>" (verified sender)
         sync: false

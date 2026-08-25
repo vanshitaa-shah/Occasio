@@ -31,23 +31,38 @@ so we send from **your** verified sender and put the user in `Reply-To` + the
 2. Brevo emails a confirmation link to that address — click it; the sender shows
    **Verified**. (Optional: verify a full domain instead by adding the shown SPF/DKIM
    DNS records at your registrar — better deliverability, not required to send.)
-3. Brevo → **SMTP & API → SMTP tab** → **Generate a new SMTP key** → copy it
-   immediately (shown once; this is *not* the same as a Brevo API key).
-4. Your `SMTP_USER` is your **Brevo account login email** (not a fixed string).
-   `SMTP_FROM` must exactly match the sender you verified in step 1.
+3. Brevo → **SMTP & API → API Keys tab** → **Generate a new API key** → copy it
+   immediately (this is `BREVO_API_KEY` — the app sends via Brevo's HTTP API, not
+   raw SMTP, since many hosts including Render's free plan block outbound SMTP
+   ports; see the note in step 3 below). Note: this is a *different* key from the
+   SMTP key on the **SMTP tab** — grab one from the SMTP tab too if you want the
+   SMTP fallback to work locally against a real provider (optional; Mailhog is
+   used for local dev by default).
+4. `SMTP_FROM` must exactly match the sender you verified in step 1.
 
 ## 3. Deploy to Render
 
 1. Render → **New → Blueprint** → connect this repo. Render reads `render.yaml`
    and provisions the **web service** + **Postgres**.
-2. `DATABASE_URL` and `JWT_SECRET` are wired automatically. Set the three secrets in
+2. `DATABASE_URL` and `JWT_SECRET` are wired automatically. Set the secrets in
    the service's **Environment** tab:
-   - `SMTP_USER` = your Brevo account login email
-   - `SMTP_PASS` = your Brevo SMTP key
-   - `SMTP_FROM` = `Occasio <no-reply@yourdomain.com>` (must match the verified sender)
+   - `BREVO_API_KEY` = your Brevo API key (from the API Keys tab — **required**;
+     without it the app falls back to raw SMTP, which times out on Render's
+     free plan — see the note below)
+   - `SMTP_USER` = your Brevo account login email (SMTP fallback only — safe to
+     set anyway)
+   - `SMTP_PASS` = your Brevo SMTP key (SMTP fallback only)
+   - `SMTP_FROM` = `Occasio <no-reply@yourdomain.com>` (must match the verified sender
+     — used by both the API and SMTP paths)
 3. **Create / Apply**. The build runs the `Dockerfile`; on start it runs
    `prisma migrate deploy` then boots. Watch logs for
    `Occasio backend listening` and `Scheduler started`.
+   > **Why the API key matters:** Render's free plan (and many free tiers) blocks
+   > or silently drops outbound SMTP connections. Without `BREVO_API_KEY` set,
+   > `MailService` falls back to SMTP on port 587 and a scheduled send will hang
+   > for ~2 minutes before failing with `Connection timeout` — the card is marked
+   > `FAILED` and never arrives. Setting `BREVO_API_KEY` sends over plain HTTPS
+   > instead, which isn't blocked.
 4. **Keep it awake (required on the free plan).** Render's free web tier sleeps
    after ~15 min with no HTTP traffic, which would stall the scheduler. Set up a
    free external pinger to hit `https://<your-service>.onrender.com/api/health`
