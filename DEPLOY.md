@@ -43,9 +43,10 @@ so we send from **your** verified sender and put the user in `Reply-To` + the
 ## 3. Deploy to Render
 
 1. Render → **New → Blueprint** → connect this repo. Render reads `render.yaml`
-   and provisions the **web service** + **Postgres**.
-2. `DATABASE_URL` and `JWT_SECRET` are wired automatically. Set the secrets in
+   and provisions the **web service** + Redis (the database is on Neon).
+2. `JWT_SECRET` is generated automatically. Set the secrets in
    the service's **Environment** tab:
+   - `DATABASE_URL` = your Neon connection string (pooled, ending in `?sslmode=require`)
    - `BREVO_API_KEY` = your Brevo API key (from the API Keys tab — **required**;
      without it the app falls back to raw SMTP, which times out on Render's
      free plan — see the note below)
@@ -85,8 +86,8 @@ so we send from **your** verified sender and put the user in `Reply-To` + the
   single render at a time (renders already run sequentially), but it's tight —
   if you see the process get OOM-killed under any concurrent load, that's the
   free tier's ceiling, not a bug; upgrading to `starter` fixes it.
-- **Free Postgres** on Render expires after 90 days — upgrade the DB plan for
-  anything real.
+- **Neon free tier** auto-suspends when idle; the first query after a pause takes
+  a moment to wake it.
 - **Poll interval:** default 60s. Set `SCHEDULER_POLL_MS` if you want it snappier.
 - **Custom domain:** add it under the service's Settings → Custom Domains (the app
   is same-origin, so nothing else changes).

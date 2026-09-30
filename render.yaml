@@ -1,7 +1,7 @@
-# Render blueprint — deploy Occasio as one Docker web service + managed Postgres
+# Render blueprint — deploy Occasio as one Docker web service (Postgres lives on Neon)
 # + a Redis (Key Value) instance backing the durable send queue.
-# In Render: New → Blueprint → connect this repo. Then set the four secret env
-# vars (BREVO_API_KEY, SMTP_USER, SMTP_PASS, SMTP_FROM) in the dashboard. See DEPLOY.md.
+# In Render: New → Blueprint → connect this repo. Then set the secret env
+# vars (DATABASE_URL, BREVO_API_KEY, SMTP_USER, SMTP_PASS, SMTP_FROM) in the dashboard. See DEPLOY.md.
 services:
   - type: web
     name: occasio
@@ -20,11 +20,10 @@ services:
       # Session signing secret — Render generates a strong value.
       - key: JWT_SECRET
         generateValue: true
-      # Managed Postgres connection string (from the database below).
+      # Neon Postgres connection string — set in the Render dashboard (not in git).
+      # Use Neon's *pooled* string and keep ?sslmode=require on the end.
       - key: DATABASE_URL
-        fromDatabase:
-          name: occasio-db
-          property: connectionString
+        sync: false
       # Redis (Key Value) backing the durable send queue.
       - key: REDIS_URL
         fromService:
@@ -59,7 +58,3 @@ services:
     plan: free
     maxmemoryPolicy: noeviction
     ipAllowList: [] # only reachable from services in this Render project
-
-databases:
-  - name: occasio-db
-    plan: free # 90-day free Postgres; upgrade before it expires for real use
