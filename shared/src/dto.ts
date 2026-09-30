@@ -1,7 +1,8 @@
 import type { CanvasDesign } from "./canvas";
 
-/** Lifecycle of a scheduled card. */
-export type CardStatus = "PENDING" | "SENT" | "FAILED";
+/** Lifecycle of a scheduled card. `SENDING` = a worker has claimed it and is
+ * rendering/mailing it right now (transient; guards against double-send). */
+export type CardStatus = "PENDING" | "SENDING" | "SENT" | "FAILED";
 
 /** Credentials for register / login. */
 export interface AuthCredentialsDto {
@@ -48,4 +49,6 @@ export interface CardResponse {
   createdAt: string;
   sentAt: string | null;
   error: string | null;
+  /** Number of send attempts made so far (increments each worker pickup). */
+  attempts: number;
 }

@@ -16,7 +16,10 @@ export class AuthService {
     private readonly jwt: JwtService,
   ) {}
 
-  async register({ email, password }: AuthCredentialsBody): Promise<AuthResponse> {
+  async register({
+    email,
+    password,
+  }: AuthCredentialsBody): Promise<AuthResponse> {
     const existing = await this.prisma.user.findUnique({ where: { email } });
     if (existing) throw new ConflictException('Email already registered');
     const user = await this.prisma.user.create({

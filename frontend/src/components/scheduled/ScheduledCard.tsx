@@ -19,6 +19,7 @@ export function ScheduledCard({ card, onCancel, onRetry }: ScheduledCardProps) {
   const scale = PREVIEW_WIDTH / card.design.width;
   const isPending = card.status === 'PENDING';
   const isFailed = card.status === 'FAILED';
+  const isSending = card.status === 'SENDING';
 
   const confirmCancel = () => {
     const label = isPending ? 'Cancel this scheduled card?' : 'Remove this card?';
@@ -48,36 +49,46 @@ export function ScheduledCard({ card, onCancel, onRetry }: ScheduledCardProps) {
         {isFailed && card.error && (
           <p className="rounded bg-red-50 px-2 py-1 text-xs text-red-600">
             {card.error}
+            {card.attempts > 0 && (
+              <span className="block text-red-400">
+                after {card.attempts} attempt{card.attempts === 1 ? '' : 's'}
+              </span>
+            )}
           </p>
         )}
 
-        <div className="flex flex-wrap gap-2">
-          {isPending && (
+        {/* A card mid-send can't be edited or cancelled. */}
+        {isSending ? (
+          <p className="text-xs text-blue-600">Sending now…</p>
+        ) : (
+          <div className="flex flex-wrap gap-2">
+            {isPending && (
+              <button
+                type="button"
+                onClick={() => navigate(`/?edit=${card.id}`)}
+                className="rounded border border-slate-200 px-2 py-1 text-xs text-slate-600 hover:bg-slate-50"
+              >
+                Edit
+              </button>
+            )}
+            {isFailed && (
+              <button
+                type="button"
+                onClick={() => onRetry(card.id)}
+                className="rounded border border-blue-200 px-2 py-1 text-xs text-blue-600 hover:bg-blue-50"
+              >
+                Retry
+              </button>
+            )}
             <button
               type="button"
-              onClick={() => navigate(`/?edit=${card.id}`)}
-              className="rounded border border-slate-200 px-2 py-1 text-xs text-slate-600 hover:bg-slate-50"
+              onClick={confirmCancel}
+              className="rounded border border-red-200 px-2 py-1 text-xs text-red-600 hover:bg-red-50"
             >
-              Edit
+              {isPending ? 'Cancel' : 'Remove'}
             </button>
-          )}
-          {isFailed && (
-            <button
-              type="button"
-              onClick={() => onRetry(card.id)}
-              className="rounded border border-blue-200 px-2 py-1 text-xs text-blue-600 hover:bg-blue-50"
-            >
-              Retry
-            </button>
-          )}
-          <button
-            type="button"
-            onClick={confirmCancel}
-            className="rounded border border-red-200 px-2 py-1 text-xs text-red-600 hover:bg-red-50"
-          >
-            {isPending ? 'Cancel' : 'Remove'}
-          </button>
-        </div>
+          </div>
+        )}
       </div>
     </div>
   );

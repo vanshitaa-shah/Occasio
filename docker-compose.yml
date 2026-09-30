@@ -25,5 +25,22 @@ services:
       - "1025:1025" # SMTP
       - "8025:8025" # Web UI -> http://localhost:8025
 
+  redis:
+    image: redis:7-alpine
+    container_name: occasio-redis
+    restart: unless-stopped
+    # Persist queued jobs across restarts (AOF); never evict them.
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory-policy", "noeviction"]
+    ports:
+      - "6379:6379"
+    volumes:
+      - occasio-redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
 volumes:
   occasio-pgdata:
+  occasio-redisdata:

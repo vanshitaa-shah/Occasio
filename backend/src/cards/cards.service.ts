@@ -1,11 +1,14 @@
 import {
   Injectable,
+  Inject,
+  forwardRef,
   NotFoundException,
   ConflictException,
 } from '@nestjs/common';
 import type { Prisma, Card } from '@prisma/client';
 import type { CanvasDesign, CardResponse } from '@occasio/shared';
 import { PrismaService } from '../prisma/prisma.service';
+import { CardQueueService } from '../queue/card-queue.service';
 import { CreateCardBody } from './dto/create-card.dto';
 import { UpdateCardBody } from './dto/update-card.dto';
 
@@ -14,7 +17,11 @@ export type DueCard = Card & { user: { email: string } };
 
 @Injectable()
 export class CardsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Inject(forwardRef(() => CardQueueService))
+    private readonly queue: CardQueueService,
+  ) {}
 
   async create(userId: string, body: CreateCardBody): Promise<CardResponse> {
     const card = await this.prisma.card.create({
@@ -25,6 +32,7 @@ export class CardsService {
         design: body.design as unknown as Prisma.InputJsonValue,
       },
     });
+    await this.queue.enqueue(card);
     return this.toResponse(card);
   }
 
@@ -63,18 +71,24 @@ export class CardsService {
         }),
       },
     });
+    // A changed send time needs the queued job moved; design/recipient edits
+    // are read fresh by the worker at fire time, so no requeue needed.
+    if (body.sendAt !== undefined) {
+      await this.queue.reschedule(updated);
+    }
     return this.toResponse(updated);
   }
 
-  /** Cancel a card (removes it). */
+  /** Cancel a card (removes it and its queued job). */
   async remove(userId: string, id: string): Promise<void> {
     const { count } = await this.prisma.card.deleteMany({
       where: { id, userId },
     });
     if (count === 0) throw new NotFoundException(`Card ${id} not found`);
+    await this.queue.remove(id);
   }
 
-  /** Re-queue a FAILED card so the scheduler picks it up again. */
+  /** Re-queue a FAILED card to send again immediately. */
   async retry(userId: string, id: string): Promise<CardResponse> {
     const card = await this.prisma.card.findFirst({ where: { id, userId } });
     if (!card) throw new NotFoundException(`Card ${id} not found`);
@@ -83,19 +97,45 @@ export class CardsService {
     }
     const updated = await this.prisma.card.update({
       where: { id },
-      data: { status: 'PENDING', error: null },
+      data: { status: 'PENDING', error: null, attempts: 0, sendAt: new Date() },
     });
+    await this.queue.enqueue(updated);
     return this.toResponse(updated);
   }
 
-  /** Due PENDING cards across all users, joined with the owner for the sender. */
-  async findDue(now: Date, take = 25): Promise<DueCard[]> {
+  /** Load a single card with its owner's email, for the send worker. */
+  async findForSend(id: string): Promise<DueCard | null> {
+    return this.prisma.card.findUnique({
+      where: { id },
+      include: { user: { select: { email: true } } },
+    });
+  }
+
+  /** PENDING cards due on/before `before`, joined with the owner (reconciler). */
+  async findPendingDueSoon(before: Date, take = 500): Promise<DueCard[]> {
     return this.prisma.card.findMany({
-      where: { status: 'PENDING', sendAt: { lte: now } },
+      where: { status: 'PENDING', sendAt: { lte: before } },
       orderBy: { sendAt: 'asc' },
       take,
       include: { user: { select: { email: true } } },
     });
+  }
+
+  /**
+   * Atomically claim a card for sending (PENDING/SENDING → SENDING), bumping the
+   * attempt counter. Returns false when no row matched — i.e. it was already
+   * SENT or cancelled — which the worker treats as the double-send guard.
+   */
+  async markSending(id: string): Promise<boolean> {
+    const { count } = await this.prisma.card.updateMany({
+      where: { id, status: { in: ['PENDING', 'SENDING'] } },
+      data: {
+        status: 'SENDING',
+        lastAttemptAt: new Date(),
+        attempts: { increment: 1 },
+      },
+    });
+    return count > 0;
   }
 
   async markSent(id: string): Promise<void> {
@@ -127,6 +167,7 @@ export class CardsService {
       createdAt: card.createdAt.toISOString(),
       sentAt: card.sentAt ? card.sentAt.toISOString() : null,
       error: card.error,
+      attempts: card.attempts,
     };
   }
 }

@@ -1,4 +1,5 @@
-# Render blueprint — deploy Occasio as one Docker web service + managed Postgres.
+# Render blueprint — deploy Occasio as one Docker web service + managed Postgres
+# + a Redis (Key Value) instance backing the durable send queue.
 # In Render: New → Blueprint → connect this repo. Then set the four secret env
 # vars (BREVO_API_KEY, SMTP_USER, SMTP_PASS, SMTP_FROM) in the dashboard. See DEPLOY.md.
 services:
@@ -6,10 +7,10 @@ services:
     name: occasio
     runtime: docker
     dockerfilePath: ./Dockerfile
-    # Free plan for a $0 demo. The scheduler polls continuously and Render's
-    # free web tier SLEEPS after ~15min idle, so this relies on an external
-    # keep-alive ping hitting healthCheckPath (see DEPLOY.md step 4) — without
-    # it, sends are delayed until the next request wakes the service. For
+    # Free plan for a $0 demo. Render's free web tier SLEEPS after ~15min idle,
+    # which also pauses the in-process send worker — so this relies on an
+    # external keep-alive ping hitting healthCheckPath (see DEPLOY.md step 4) to
+    # stay awake; queued jobs still fire on time once the service is up. For
     # real production use, switch this to `plan: starter` instead.
     plan: free
     healthCheckPath: /api/health
@@ -23,6 +24,12 @@ services:
       - key: DATABASE_URL
         fromDatabase:
           name: occasio-db
+          property: connectionString
+      # Redis (Key Value) backing the durable send queue.
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: occasio-redis
           property: connectionString
       # ---- Email (Brevo HTTP API; outbound SMTP is blocked on Render's free
       # plan, so BREVO_API_KEY set takes priority over SMTP — see mail.service.ts) ----
@@ -43,6 +50,15 @@ services:
         sync: false
     # RENDER_BASE_URL is intentionally unset: the service renders against itself
     # (http://localhost:$PORT/render), which it serves.
+
+  # Redis (Key Value) for the BullMQ send queue. noeviction so queued jobs are
+  # never dropped under memory pressure. Free plan is in-memory only (no
+  # persistence) — the boot reconciler re-enqueues PENDING cards after a restart.
+  - type: redis
+    name: occasio-redis
+    plan: free
+    maxmemoryPolicy: noeviction
+    ipAllowList: [] # only reachable from services in this Render project
 
 databases:
   - name: occasio-db

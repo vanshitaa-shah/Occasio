@@ -6,7 +6,7 @@ import { HealthController } from './health.controller';
 import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './auth/auth.module';
 import { CardsModule } from './cards/cards.module';
-import { SchedulerModule } from './scheduler/scheduler.module';
+import { QueueModule } from './queue/queue.module';
 import { RenderModule } from './render/render.module';
 import { MailModule } from './mail/mail.module';
 
@@ -14,8 +14,7 @@ import { MailModule } from './mail/mail.module';
 // Playwright can render against http://localhost:$PORT/render. Only enabled when
 // the build is present (absent in local dev, where Vite serves the frontend).
 const frontendDist =
-  process.env.FRONTEND_DIST ??
-  join(__dirname, '..', '..', 'frontend', 'dist');
+  process.env.FRONTEND_DIST ?? join(__dirname, '..', '..', 'frontend', 'dist');
 const staticImports = existsSync(frontendDist)
   ? [
       ServeStaticModule.forRoot({
@@ -31,7 +30,7 @@ const staticImports = existsSync(frontendDist)
     PrismaModule,
     AuthModule,
     CardsModule,
-    SchedulerModule,
+    QueueModule,
     RenderModule,
     MailModule,
   ],
