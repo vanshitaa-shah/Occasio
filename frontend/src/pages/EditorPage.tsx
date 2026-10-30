@@ -31,6 +31,7 @@ export function EditorPage() {
   } = useCardDesign();
 
   const [editing, setEditing] = useState<ScheduleEditing | null>(null);
+  const [saving, setSaving] = useState(false);
   const { ref: canvasAreaRef, scale } = useCanvasScale(design.width, design.height);
 
   // Load the card to edit (or reset to a fresh design when not editing).
@@ -76,7 +77,14 @@ export function EditorPage() {
         </div>
       )}
 
-      <div className="grid min-h-0 flex-1 grid-cols-[220px_1fr_300px] gap-4 p-4">
+      {/* While saving, a disabled fieldset locks every control; pointer-events
+          covers the (non-form) canvas. */}
+      <fieldset
+        disabled={saving}
+        className={`grid min-h-0 min-w-0 flex-1 grid-cols-[220px_1fr_300px] gap-4 p-4 ${
+          saving ? 'pointer-events-none opacity-60' : ''
+        }`}
+      >
         <aside className="overflow-y-auto rounded-xl bg-white p-4 shadow-sm">
           <Toolbar theme={design.theme} onThemeChange={setTheme} onAddShape={addShape} />
         </aside>
@@ -125,10 +133,11 @@ export function EditorPage() {
               design={design}
               editing={editing}
               onSaved={() => navigate('/scheduled')}
+              onSubmittingChange={setSaving}
             />
           </div>
         </aside>
-      </div>
+      </fieldset>
     </div>
   );
 }

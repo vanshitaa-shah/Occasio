@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import type { CanvasDesign } from '@occasio/shared';
 import {
   useScheduleCard,
@@ -8,13 +9,21 @@ interface ScheduleFormProps {
   design: CanvasDesign;
   editing?: ScheduleEditing | null;
   onSaved?: () => void;
+  /** Reports when a save is in flight, so the page can lock the whole editor. */
+  onSubmittingChange?: (submitting: boolean) => void;
 }
 
-export function ScheduleForm({ design, editing, onSaved }: ScheduleFormProps) {
+export function ScheduleForm({
+  design,
+  editing,
+  onSaved,
+  onSubmittingChange,
+}: ScheduleFormProps) {
   const { recipient, setRecipient, sendAt, setSendAt, status, submit, isEditing } =
     useScheduleCard(design, editing, onSaved);
 
   const submitting = status.kind === 'submitting';
+  useEffect(() => onSubmittingChange?.(submitting), [submitting, onSubmittingChange]);
   const label = isEditing
     ? submitting
       ? 'Saving…'
