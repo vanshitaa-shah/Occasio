@@ -1,11 +1,11 @@
 # Deploying Occasio (Render + Brevo)
 
-Occasio deploys as **one Docker web service** (NestJS API + node-cron scheduler +
-Playwright/Chromium render, which also serves the React SPA) plus a **managed
-Postgres**. The container renders cards against itself (`http://localhost:$PORT/render`)
+Occasio deploys as **one Docker web service** (NestJS API + BullMQ send worker +
+Playwright/Chromium render, which also serves the React SPA) plus Postgres (Neon)
+and Redis (Render Key Value). The container renders cards against itself (`http://localhost:$PORT/render`)
 and emails them via your SMTP provider.
 
-> Why one container (not serverless): the scheduler runs continuously and Chromium
+> Why one container (not serverless): the send worker runs continuously and Chromium
 > needs a real OS, so the backend must be an **always-on container**, not functions.
 
 ---
@@ -57,7 +57,7 @@ so we send from **your** verified sender and put the user in `Reply-To` + the
      — used by both the API and SMTP paths)
 3. **Create / Apply**. The build runs the `Dockerfile`; on start it runs
    `prisma migrate deploy` then boots. Watch logs for
-   `Occasio backend listening` and `Scheduler started`.
+   `Occasio backend listening` and `Send worker started`.
    > **Why the API key matters:** Render's free plan (and many free tiers) blocks
    > or silently drops outbound SMTP connections. Without `BREVO_API_KEY` set,
    > `MailService` falls back to SMTP on port 587 and a scheduled send will hang
@@ -65,7 +65,7 @@ so we send from **your** verified sender and put the user in `Reply-To` + the
    > `FAILED` and never arrives. Setting `BREVO_API_KEY` sends over plain HTTPS
    > instead, which isn't blocked.
 4. **Keep it awake (required on the free plan).** Render's free web tier sleeps
-   after ~15 min with no HTTP traffic, which would stall the scheduler. Set up a
+   after ~15 min with no HTTP traffic, which would pause the send worker. Set up a
    free external pinger to hit `https://<your-service>.onrender.com/api/health`
    every 10 minutes — e.g. [UptimeRobot](https://uptimerobot.com) or
    [cron-job.org](https://cron-job.org) (both have free tiers), or a scheduled
@@ -88,7 +88,9 @@ so we send from **your** verified sender and put the user in `Reply-To` + the
   free tier's ceiling, not a bug; upgrading to `starter` fixes it.
 - **Neon free tier** auto-suspends when idle; the first query after a pause takes
   a moment to wake it.
-- **Poll interval:** default 60s. Set `SCHEDULER_POLL_MS` if you want it snappier.
+- **Redis on the free plan has no persistence:** queued jobs are lost on a Redis
+  restart. The boot-time reconciler re-enqueues every PENDING card, and re-checks
+  every 5 minutes (`RECONCILE_INTERVAL_MS`).
 - **Custom domain:** add it under the service's Settings → Custom Domains (the app
   is same-origin, so nothing else changes).
 - `RENDER_BASE_URL` is left unset on purpose so the service renders against itself.
@@ -97,16 +99,17 @@ so we send from **your** verified sender and put the user in `Reply-To` + the
 
 The `Dockerfile` is platform-agnostic — the same image runs on **Railway**,
 **Fly.io**, or any VPS. Provide the same env vars (`DATABASE_URL`, `JWT_SECRET`,
-`SMTP_*`) and a Postgres instance; ensure the plan is always-on.
+`REDIS_URL`, `SMTP_*`/`BREVO_API_KEY`) and Postgres + Redis instances; ensure the plan is always-on.
 
 ## 6. Verify the production build locally (optional)
 
 ```bash
-export PATH="$HOME/.nvm/versions/node/v22.14.0/bin:$PATH"   # Node 22
+nvm use 22                                                  # Node >= 22.22.3
 pnpm -r build
 docker build -t occasio .
 docker run --rm -p 3001:3001 \
   -e DATABASE_URL=postgresql://occasio:occasio@host.docker.internal:5432/occasio \
+  -e REDIS_URL=redis://host.docker.internal:6379 \
   -e JWT_SECRET=dev-secret \
   -e SMTP_HOST=host.docker.internal -e SMTP_PORT=1025 \
   -e SMTP_FROM="Occasio <no-reply@occasio.local>" \

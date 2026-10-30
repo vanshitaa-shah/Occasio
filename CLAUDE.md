@@ -17,7 +17,7 @@ Run from the repo root (pnpm workspace monorepo; Node >= 22, pnpm >= 10, Docker 
 ```bash
 pnpm install                    # install all workspaces
 cp .env.example .env && cp .env.example backend/.env   # backend reads its OWN .env
-pnpm infra:up                   # Postgres + Mailhog (Mailhog UI: http://localhost:8025)
+pnpm infra:up                   # Postgres + Redis + Mailhog (Mailhog UI: http://localhost:8025)
 pnpm infra:down
 pnpm db:migrate                 # prisma migrate dev
 pnpm db:generate                # regenerate Prisma client after schema.prisma edits
@@ -31,9 +31,7 @@ Per-workspace:
 ```bash
 pnpm --filter frontend lint     # oxlint
 pnpm --filter backend lint      # eslint --fix
-pnpm --filter backend test      # jest (unit)
-pnpm --filter backend test -- cards.service   # single test file by name pattern
-pnpm --filter backend test:e2e  # jest with test/jest-e2e.json
+pnpm --filter backend test:e2e  # jest with test/jest-e2e.json (there are no unit tests yet)
 ```
 
 **Always `pnpm -r build` (or build `@occasio/shared`) before running backend/frontend after
@@ -49,15 +47,15 @@ Three workspaces, one shared contract:
   `CardStatus`). It is **CommonJS with `.d.ts`** so both NestJS (CJS) and Vite (bundler) consume
   it without interop friction. Everything about "what a card is" lives here — change it here, not
   in a workspace copy.
-- **`frontend/`** — React 19 + Vite + Tailwind v3 + react-konva. Routes (`main.tsx`): `/`
+- **`frontend/`** — React 19 + Vite + Tailwind v4 + react-konva. Routes (`main.tsx`): `/`
   (`EditorPage`; `/?edit=<id>` re-opens a PENDING card to edit its full design + recipient +
   time, saving via `PATCH`) and `/scheduled` (`ScheduledPage`) are **protected** by
   `RequireAuth`; `/login` + `/register` (`AuthPage`) are public; `/render` (`RenderPage`, the
   headless-render target) is public. An `AuthLayout` root route wraps everything in
   `AuthProvider` (`useAuth`); the token + user live in `localStorage` (`authStorage`) and the
   API client attaches `Authorization: Bearer` and bounces to `/login` on a 401.
-- **`backend/`** — NestJS. Auth (JWT) + API + scheduler + render + mail all run **in one
-  process** for v1.
+- **`backend/`** — NestJS. Auth (JWT) + API + queue worker + render + mail all run **in one
+  process**.
 
 ### Auth & ownership
 
@@ -81,33 +79,42 @@ Because both paths share this component, the emailed image is guaranteed identic
 **Every element is anchored by its CENTER `(x, y)`** so drag/transform behaves uniformly across
 shape kinds and text. Preserve that invariant when adding elements.
 
-### The send pipeline (implemented — Phase 3)
+### The send pipeline
 
-`SchedulerService`, `RenderService`, and `MailService` are the send pipeline, each behind a
-single-method seam so the mechanism can change without touching callers:
+`CardQueueService`, `SendWorkerService`, `ReconcilerService` (in `backend/src/queue/`),
+`RenderService` and `MailService` are the send pipeline:
 
-- `SchedulerService` polls `(status, sendAt)` every `SCHEDULER_POLL_MS` (default 60s; indexed in
-  the schema). Each cycle is guarded (`running` flag) so a slow cycle can't overlap the next. It
-  is written behind a `CardScheduler` interface so a durable-timer backend (e.g. Temporal) can
-  drop in later. On error a card is marked `FAILED` (retry/backoff is Phase 4).
-- `RenderService.render(design) → Buffer` drives Playwright headless Chromium: one reused browser,
-  a fresh `context` per job, loads `${RENDER_BASE_URL}/render?design=…`, waits for
-  `window.__OCCASIO_READY__`, screenshots the canvas at `deviceScaleFactor: 2`. **Requires the
-  frontend to be served** at `RENDER_BASE_URL` (Vite dev server in dev).
-- `MailService.sendCard()` sends via Nodemailer over SMTP (`SMTP_HOST`/`SMTP_PORT` + optional
-  `SMTP_USER`/`SMTP_PASS`/`SMTP_SECURE`; Mailhog in dev, any provider in prod), embedding the PNG
-  inline via a `cid`. You can't send **as** an arbitrary user (SPF/DKIM/DMARC), so `From` is a
-  fixed verified sender (`SMTP_FROM`), `Reply-To` is the owner's email, and the owner is shown
-  via the "Sent by" footer baked into the card image. `To` is the card's `recipient`.
+- `CardQueueService` owns the BullMQ `card-send` queue (Redis, `REDIS_URL`). Each card gets one
+  delayed job (`jobId = card.id`, fires at `sendAt`); `CardsService` enqueues on create/retry,
+  reschedules on edit and removes on cancel. Failed sends retry with exponential backoff
+  (`SEND_MAX_ATTEMPTS`, `SEND_BACKOFF_MS`).
+- `SendWorkerService` drains the queue (`SEND_WORKER_CONCURRENCY`): atomically claims the card
+  (`PENDING`/`SENDING` → `SENDING`, the double-send guard) → render → mail → `markSent`. A card is
+  marked `FAILED` only after its final attempt.
+- `ReconcilerService` is the safety net: on boot it enqueues every `PENDING` card that has no job,
+  then sweeps every `RECONCILE_INTERVAL_MS` for cards due within `RECONCILE_LOOKAHEAD_MS`
+  (covers Redis restarts / lost jobs).
+- `RenderService.render(design, sentBy) → Buffer` drives Playwright headless Chromium: one reused
+  browser, a fresh `context` per job (capped by `RENDER_CONCURRENCY`), loads
+  `${RENDER_BASE_URL}/render?design=…`, waits for `window.__OCCASIO_READY__`, screenshots the
+  canvas at `deviceScaleFactor: 2`. **Requires the frontend to be served** at `RENDER_BASE_URL`
+  (Vite dev server in dev; the backend serves the built SPA in production).
+- `MailService.sendCard()` sends via Brevo's HTTP API when `BREVO_API_KEY` is set, otherwise
+  Nodemailer over SMTP (`SMTP_HOST`/`SMTP_PORT` + optional `SMTP_USER`/`SMTP_PASS`/`SMTP_SECURE`;
+  Mailhog in dev), embedding the PNG inline via a `cid`. You can't send **as** an arbitrary user
+  (SPF/DKIM/DMARC), so `From` is a fixed verified sender (`SMTP_FROM`), `Reply-To` is the owner's
+  email, and the owner is shown via the "Sent by" footer baked into the card image. `To` is the
+  card's `recipient`.
 
-Pipeline DB helpers live in `cards.service` (`findDue`, `markSent`, `markFailed`, `designOf`), not
-in the scheduler. The `Card` CRUD API (`cards.controller` / `cards.service`) is also real.
+Pipeline DB helpers live in `cards.service` (`findForSend`, `findPendingDueSoon`, `markSending`,
+`markSent`, `markFailed`, `designOf`), not in the queue services. The `Card` CRUD API
+(`cards.controller` / `cards.service`) is also real.
 
 ### Data flow
 
 Editor serializes `CanvasDesign` → `POST /cards` stores `Card { design: Json, recipient, sendAt,
-status: PENDING }` in Postgres → scheduler finds due PENDING cards → render to PNG → email → mark
-`SENT`/`FAILED`. The design JSON round-trips verbatim through the DB (`Prisma.InputJsonValue`).
+status: PENDING }` in Postgres → a delayed queue job fires at `sendAt` → render to PNG → email → mark
+`SENT`/`FAILED` (via `SENDING`). The design JSON round-trips verbatim through the DB (`Prisma.InputJsonValue`).
 
 ## Conventions
 
@@ -138,11 +145,8 @@ status: PENDING }` in Postgres → scheduler finds due PENDING cards → render 
 
 ## Roadmap context
 
-Phases 1–6 are done — see [phases/](phases/): Phase 1 (scaffold + infra + Card model + stubs),
-Phase 2 (editor + schedule form + `POST /cards`), Phase 3 (render/mail/poll pipeline), Phase 4
-(scheduled-cards status UI + cancel/retry: `DELETE /cards/:id`, `POST /cards/:id/retry`,
-`PATCH /cards/:id`), Phase 5 (edit a PENDING card's full canvas in the editor), Phase 6 (JWT
-auth: register/login, per-user card ownership + scoping), Phase 7 (real SMTP sending: fixed
-verified `From` + `Reply-To` = owner, a non-editable "Sent by: <owner>" footer baked into the
-card via `CanvasRenderer`'s `sentBy` prop). Still optional/future: automatic retry+backoff, swap node-cron → Temporal and Mailhog →
-a real email provider (both already behind their seams).
+Phases 1–10 are documented in [phases/](phases/): scaffold + infra, editor + schedule form,
+render/mail pipeline, scheduled-cards UI (cancel/retry/edit), editing a PENDING card's full canvas,
+JWT auth + per-user ownership, real SMTP sending with a "Sent by" footer, Render single-container
+deploy ([DEPLOY.md](DEPLOY.md)), Brevo HTTP API sending, and the durable BullMQ/Redis send queue
+(which replaced the Phase 3 polling scheduler).

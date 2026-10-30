@@ -1,5 +1,8 @@
 # Phase 3 — Render & Send Pipeline
 
+> **Superseded:** the polling `SchedulerService` described here was replaced by a
+> BullMQ queue in [Phase 10](phase-10.md). The render and mail steps still apply.
+
 Fill the three backend seams so a scheduled card actually gets rendered to an
 image and emailed at its send time. The `Card` CRUD + editor from Phases 1–2 are
 reused unchanged; this phase makes the stubs real.
@@ -34,10 +37,10 @@ scheduler tick (every SCHEDULER_POLL_MS)
 - **The render page IS the shared `CanvasRenderer`** loaded via `/render` — the
   emailed image is produced by the exact same code as the editor preview.
 - **Requires the frontend served at `RENDER_BASE_URL`** (Vite dev server in dev).
-  This is the one runtime coupling; a bundled render target is a later concern.
+  This is the one runtime coupling.
 - **DB access stays in `cards.service`**, not the scheduler — the scheduler
   orchestrates, the service owns Prisma.
-- **`FAILED` on any render/send error** (no retry) — retry/backoff is Phase 4.
+- **`FAILED` on any render/send error** (no automatic retry in this phase).
   Cycle is overlap-guarded so a slow render can't stack ticks.
 - **`SCHEDULER_POLL_MS`** env knob (default 60000) so tests can poll fast.
 
@@ -62,9 +65,3 @@ SCHEDULER_POLL_MS=3000 pnpm dev:backend     # :3001 — fast poll for testing
 # schedule a card in the UI (or POST /cards) with a near/past send time
 # watch it land in Mailhog: http://localhost:8025
 ```
-
-## Next — Phase 4
-
-Preview/edit/cancel scheduled cards + a status list in the UI; retry/backoff on
-`FAILED`; optionally swap node-cron → Temporal and Mailhog → a real email
-provider (both already behind their seams).

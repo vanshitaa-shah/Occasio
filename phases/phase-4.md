@@ -39,11 +39,9 @@ ones); DB access stays in `cards.service`.
   see is what sends.
 - **Actions are status-scoped**: PENDING → Edit + Cancel; FAILED → Retry +
   Remove (+ error shown); SENT → Remove. Enforced on the backend too.
-- **Edit covers recipient + send time only** (the common "wrong time/address"
-  fix). Re-opening a design in the editor is a future enhancement; `PATCH`
-  already accepts `design` so the API is ready for it.
-- **Manual retry, not automatic** — deliberate for v1; auto retry+backoff stays
-  a future item. Retry just flips FAILED → PENDING for the next poll.
+- **Edit covers recipient + send time only** in this phase (re-opening the full
+  design came in Phase 5); `PATCH` already accepts `design`.
+- **Manual retry** in this phase: retry just flips FAILED → PENDING for the next poll.
 - **`window.confirm` before delete** to avoid accidental cancels.
 - Header extracted to `AppHeader` so the editor and list share nav.
 
@@ -70,6 +68,3 @@ pnpm dev:backend     # :3001
 ## Status
 
 The v1 product loop is complete: **design → schedule → manage → render → email.**
-Remaining optional/future work: automatic retry + backoff, node-cron → Temporal,
-Mailhog → a real email provider (all behind existing seams), and re-opening a
-scheduled design in the editor.

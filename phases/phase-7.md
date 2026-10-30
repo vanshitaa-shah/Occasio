@@ -32,7 +32,7 @@ Email has anti-spoofing (SPF/DKIM/DMARC): a shared server can't send **as**
 
 Set env to your provider's SMTP + a **verified** sender (see `.env.example`):
 - **Brevo**: `smtp-relay.brevo.com:587`, user = Brevo account login email, pass = SMTP key
-  (used in production — see Phase 8 / `DEPLOY.md`).
+  (used in production — see `DEPLOY.md`).
 - **SendGrid**: `smtp.sendgrid.net:587`, user `apikey`, pass = API key.
 
 Requires a domain (or single-sender) verified with the provider. Dev stays on

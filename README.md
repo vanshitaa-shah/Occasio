@@ -16,11 +16,12 @@ with a headless browser so it arrives **pixel-for-pixel as it looked in the UI**
 | Repo               | pnpm workspace monorepo (`frontend/`, `backend/`, `shared/`)  |
 | Frontend           | React + Vite + TypeScript + Tailwind CSS                      |
 | Canvas editor      | react-konva (serializes the scene to JSON)                    |
-| Backend            | NestJS + TypeScript (API + scheduler + worker in one process) |
+| Backend            | NestJS + TypeScript (API + queue worker in one process)       |
+| Auth               | JWT (register/login), per-user card ownership                 |
 | Database           | PostgreSQL + Prisma                                           |
-| Scheduler          | node-cron polling (behind a `SchedulerService` abstraction)   |
+| Send queue         | BullMQ delayed jobs on Redis, plus a reconciler safety net    |
 | Send-time render   | Playwright headless Chromium → PNG                            |
-| Email              | Nodemailer → Mailhog (local inbox)                            |
+| Email              | Nodemailer → Mailhog locally; Brevo HTTP API in production    |
 | Shared types       | `@occasio/shared` — canvas JSON schema + DTOs                 |
 
 ## Prerequisites
@@ -37,7 +38,7 @@ pnpm install
 cp .env.example .env
 cp .env.example backend/.env   # backend reads its own .env
 
-# 3. infra (Postgres + Mailhog)
+# 3. infra (Postgres + Redis + Mailhog)
 pnpm infra:up                  # Mailhog UI: http://localhost:8025
 
 # 4. database
@@ -48,10 +49,14 @@ pnpm dev:backend               # http://localhost:3001  (GET /health -> {status:
 pnpm dev:frontend              # http://localhost:5173
 ```
 
-## Roadmap
+## What's implemented
 
-- **Phase 1 (current):** monorepo scaffold, infra, Prisma `Card` model, NestJS
-  boots with `/health`, Vite app with placeholder editor + render pages.
-- **Phase 2:** canvas editor (themes, shapes, title/subtitle) + schedule form + `POST /cards`.
-- **Phase 3:** Playwright render → Nodemailer send → node-cron poll marks SENT/FAILED.
-- **Phase 4:** preview/edit/cancel, status UI; optional swap to Temporal + a real email provider.
+- Canvas editor (themes, shapes, title/subtitle) + schedule form.
+- Register/login; every card is owned by a user and scoped to them.
+- Scheduled-cards page: live previews, status, edit (full canvas), cancel, retry.
+- Send pipeline: a BullMQ delayed job per card → Playwright render → email
+  (with a "Sent by" footer baked into the image), automatic retry with
+  exponential backoff, `FAILED` once attempts are exhausted.
+- Single-container Docker deploy (see [DEPLOY.md](DEPLOY.md)).
+
+Per-phase notes live in [phases/](phases/).

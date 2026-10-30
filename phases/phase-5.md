@@ -58,5 +58,4 @@ panel with prefilled fields, and "Save changes".
 ## Status
 
 v1 loop with full editing: **design → schedule → manage → edit (design/email/time)
-→ render → email.** Optional/future unchanged: auto retry+backoff, node-cron →
-Temporal, Mailhog → real provider.
+→ render → email.**

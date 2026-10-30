@@ -67,6 +67,4 @@ pnpm dev:backend         # :3001  (set JWT_SECRET in backend/.env)
 ## Status
 
 Accounts + ownership complete: **register/login → design → schedule (from your
-address) → manage your cards → render → email.** Optional/future unchanged:
-auto retry+backoff, node-cron → Temporal, Mailhog → a real provider (which would
-also bring real sender-domain verification).
+address) → manage your cards → render → email.**
