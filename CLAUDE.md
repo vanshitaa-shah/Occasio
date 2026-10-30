@@ -144,6 +144,7 @@ status: PENDING }` in Postgres → a delayed queue job fires at `sendAt` → ren
 - **Prisma v7** with the `prisma-client-js` generator: the datasource URL lives in `backend/prisma.config.ts` (not `schema.prisma`) and `PrismaService` passes a `@prisma/adapter-pg` driver adapter.
 - **Tailwind v4** via `@tailwindcss/vite` (CSS-first: `@import "tailwindcss"` in `index.css`, no `tailwind.config.js`/PostCSS).
 - **TypeScript**: backend stays on 6.x (Nest CLI + typescript-eslint need the compiler API until TS 7.1); frontend/shared use 7.x. Node >= 22.22.3 (Nest CLI 12).
+- **Playwright pinned to exactly 1.61.1** (backend): 1.64+ has no Chromium build for Ubuntu 20.04 (the dev machine). The Docker image (Debian bookworm) isn't affected, so unpin when the dev OS is upgraded. After changing the version run `pnpm --filter backend exec playwright install chromium`.
 - **Backend on port 3001**, not 3000 (3000 is occupied on the dev machine) — reflected in `.env`,
   `frontend/src/lib/api.ts`, and README.
 
