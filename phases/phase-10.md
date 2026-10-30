@@ -16,8 +16,7 @@ automatically.
 **Also changed**
 
 - `CardsService` enqueues on create and retry, reschedules when `sendAt` changes,
-  and removes the job on cancel. New helpers: `findForSend`, `findPendingDueSoon`,
-  `markSending`.
+  and removes the job on cancel. New helpers: `claimForSend`, `findDispatchable`.
 - Prisma `Card` gained a `SENDING` status plus `attempts` and `lastAttemptAt`.
 - `RenderService` caps concurrent Chromium contexts (`RENDER_CONCURRENCY`).
 - `docker-compose.yml` and `render.yaml` add Redis (`noeviction`; AOF persistence
@@ -27,15 +26,24 @@ automatically.
 
 - **Postgres stays the source of truth; Redis only holds timers.** Losing Redis
   loses no cards — the reconciler rebuilds the jobs from `PENDING` rows.
-- **`markSending` is a conditional `updateMany`** (`PENDING`/`SENDING` → `SENDING`):
-  zero rows matched means the card was already sent or cancelled, which is the
-  double-send guard across workers/instances.
+- **Row locks on every status-dependent write.** `update`, `retry`, cancel and the
+  worker claim run in a transaction that starts with `SELECT … FOR UPDATE` on the
+  card, so an edit can't land on a card that's already `SENDING`, and the worker
+  always sends the card as of its claim. Redis calls happen after the commit.
+- **Claim rules:** `PENDING`, or `SENDING` when it's the job's own retry
+  (`attempts === attemptsMade`) or the lease (`SEND_LEASE_MS`) expired — so a
+  redelivered "stalled" job whose first run is still alive is skipped. The
+  reconciler re-enqueues expired-lease cards so a dead worker can't strand one.
+- **Finished jobs are cleared before re-enqueue** (BullMQ ignores `add()` under an
+  existing `jobId`, so a retried card would otherwise never get a live job), and
+  `has()` ignores finished jobs.
+- **Cancelling a `SENDING` card returns 409** — the email can't be recalled.
 - **Retry lives in the queue, not the worker loop**, so backoff survives a restart.
 
 ## Config
 
 `REDIS_URL`, `SEND_WORKER_CONCURRENCY`, `RENDER_CONCURRENCY`, `SEND_MAX_ATTEMPTS`,
-`SEND_BACKOFF_MS`, `RECONCILE_INTERVAL_MS`, `RECONCILE_LOOKAHEAD_MS` — defaults and
+`SEND_BACKOFF_MS`, `RECONCILE_INTERVAL_MS`, `RECONCILE_LOOKAHEAD_MS`, `SEND_LEASE_MS` — defaults and
 descriptions in `.env.example`.
 
 ## Run

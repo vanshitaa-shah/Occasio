@@ -23,7 +23,7 @@ const DEFAULT_LOOKAHEAD_MS = 120_000; // 2 min
 /**
  * Safety net, NOT the primary dispatch path. Delayed jobs live in Redis and
  * normally fire on their own. This sweep re-enqueues PENDING cards that are due
- * soon but have no queue job — covering jobs lost to a Redis restart (free-tier
+ * soon (or SENDING with an expired claim lease) but have no live queue job — covering jobs lost to a Redis restart (free-tier
  * Redis has no persistence), cards created while Redis was down, and pre-v2
  * rows created before the queue existed. On boot it also seeds jobs for every
  * outstanding PENDING card.
@@ -80,7 +80,7 @@ export class ReconcilerService
       const before = seedAll
         ? new Date(Date.now() + 100 * 365 * 24 * 60 * 60 * 1000) // ~100y — all PENDING
         : new Date(Date.now() + this.lookaheadMs);
-      const due = await this.cards.findPendingDueSoon(before);
+      const due = await this.cards.findDispatchable(before);
       let requeued = 0;
       for (const card of due) {
         if (!(await this.queue.has(card.id))) {

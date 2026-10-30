@@ -88,12 +88,14 @@ shape kinds and text. Preserve that invariant when adding elements.
   delayed job (`jobId = card.id`, fires at `sendAt`); `CardsService` enqueues on create/retry,
   reschedules on edit and removes on cancel. Failed sends retry with exponential backoff
   (`SEND_MAX_ATTEMPTS`, `SEND_BACKOFF_MS`).
-- `SendWorkerService` drains the queue (`SEND_WORKER_CONCURRENCY`): atomically claims the card
-  (`PENDING`/`SENDING` → `SENDING`, the double-send guard) → render → mail → `markSent`. A card is
-  marked `FAILED` only after its final attempt.
+- `SendWorkerService` drains the queue (`SEND_WORKER_CONCURRENCY`): `claimForSend` (a transaction
+  that takes `SELECT … FOR UPDATE` on the card row and returns the card as of the claim — the
+  double-send guard) → render → mail → `markSent`. A card is marked `FAILED` only after its final
+  attempt. A `SENDING` claim is honoured for `SEND_LEASE_MS` (default 5 min), after which another
+  worker may take over.
 - `ReconcilerService` is the safety net: on boot it enqueues every `PENDING` card that has no job,
-  then sweeps every `RECONCILE_INTERVAL_MS` for cards due within `RECONCILE_LOOKAHEAD_MS`
-  (covers Redis restarts / lost jobs).
+  then sweeps every `RECONCILE_INTERVAL_MS` for cards due within `RECONCILE_LOOKAHEAD_MS`, plus
+  `SENDING` cards whose lease expired (covers Redis restarts, lost jobs, dead workers).
 - `RenderService.render(design, sentBy) → Buffer` drives Playwright headless Chromium: one reused
   browser, a fresh `context` per job (capped by `RENDER_CONCURRENCY`), loads
   `${RENDER_BASE_URL}/render?design=…`, waits for `window.__OCCASIO_READY__`, screenshots the
@@ -106,8 +108,10 @@ shape kinds and text. Preserve that invariant when adding elements.
   email, and the owner is shown via the "Sent by" footer baked into the card image. `To` is the
   card's `recipient`.
 
-Pipeline DB helpers live in `cards.service` (`findForSend`, `findPendingDueSoon`, `markSending`,
-`markSent`, `markFailed`, `designOf`), not in the queue services. The `Card` CRUD API
+Pipeline DB helpers live in `cards.service` (`claimForSend`, `findDispatchable`, `markSent`,
+`markFailed`, `designOf`), not in the queue services. `update` / `retry` / `remove` / `claimForSend`
+all lock the card row (`lockCard`) before checking its status, so edits, cancels and the worker
+can't race; Redis calls happen after the DB commit (they can't join the transaction). The `Card` CRUD API
 (`cards.controller` / `cards.service`) is also real.
 
 ### Data flow

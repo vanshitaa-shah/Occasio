@@ -5,7 +5,7 @@ import {
   NotFoundException,
   ConflictException,
 } from '@nestjs/common';
-import type { Prisma, Card } from '@prisma/client';
+import { Prisma, type Card, type CardStatus } from '@prisma/client';
 import type { CanvasDesign, CardResponse } from '@occasio/shared';
 import { PrismaService } from '../prisma/prisma.service';
 import { CardQueueService } from '../queue/card-queue.service';
@@ -15,8 +15,25 @@ import { UpdateCardBody } from './dto/update-card.dto';
 /** A due card joined with its owner (whose email is the sender). */
 export type DueCard = Card & { user: { email: string } };
 
+/** The columns read under a row lock (`SELECT … FOR UPDATE`). */
+interface LockedCard {
+  status: CardStatus;
+  attempts: number;
+  lastAttemptAt: Date | null;
+}
+
+/**
+ * How long a SENDING claim is honoured before another worker may take the card
+ * over (the claiming worker is presumed dead). Well above a render + send.
+ */
+const DEFAULT_SEND_LEASE_MS = 300_000;
+
 @Injectable()
 export class CardsService {
+  private readonly leaseMs = Number(
+    process.env.SEND_LEASE_MS ?? DEFAULT_SEND_LEASE_MS,
+  );
+
   constructor(
     private readonly prisma: PrismaService,
     @Inject(forwardRef(() => CardQueueService))
@@ -50,71 +67,108 @@ export class CardsService {
     return this.toResponse(card);
   }
 
+  /**
+   * Lock a card's row (`FOR UPDATE`) for the rest of the transaction, so a
+   * concurrent edit / cancel / retry / worker claim waits instead of racing the
+   * status check that follows. Scoped to the owner when `userId` is given.
+   */
+  private async lockCard(
+    tx: Prisma.TransactionClient,
+    id: string,
+    userId?: string,
+  ): Promise<LockedCard | null> {
+    const owner = userId ? Prisma.sql`AND "userId" = ${userId}` : Prisma.empty;
+    const rows = await tx.$queryRaw<LockedCard[]>`
+      SELECT status, attempts, "lastAttemptAt" FROM "Card"
+      WHERE id = ${id} ${owner} FOR UPDATE`;
+    return rows[0] ?? null;
+  }
+
   /** Edit a still-PENDING card (recipient / sendAt / design). */
   async update(
     userId: string,
     id: string,
     body: UpdateCardBody,
   ): Promise<CardResponse> {
-    const card = await this.prisma.card.findFirst({ where: { id, userId } });
-    if (!card) throw new NotFoundException(`Card ${id} not found`);
-    if (card.status !== 'PENDING') {
-      throw new ConflictException(`Only PENDING cards can be edited`);
-    }
-    const updated = await this.prisma.card.update({
-      where: { id },
-      data: {
-        ...(body.recipient !== undefined && { recipient: body.recipient }),
-        ...(body.sendAt !== undefined && { sendAt: new Date(body.sendAt) }),
-        ...(body.design !== undefined && {
-          design: body.design as unknown as Prisma.InputJsonValue,
-        }),
-      },
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const locked = await this.lockCard(tx, id, userId);
+      if (!locked) throw new NotFoundException(`Card ${id} not found`);
+      if (locked.status !== 'PENDING') {
+        throw new ConflictException(`Only PENDING cards can be edited`);
+      }
+      return tx.card.update({
+        where: { id },
+        data: {
+          ...(body.recipient !== undefined && { recipient: body.recipient }),
+          ...(body.sendAt !== undefined && { sendAt: new Date(body.sendAt) }),
+          ...(body.design !== undefined && {
+            design: body.design as unknown as Prisma.InputJsonValue,
+          }),
+        },
+      });
     });
-    // A changed send time needs the queued job moved; design/recipient edits
-    // are read fresh by the worker at fire time, so no requeue needed.
+    // Queue (Redis) work happens after the DB commit — it can't join the
+    // transaction. A changed send time needs the queued job moved; design /
+    // recipient edits are read fresh by the worker at claim time.
     if (body.sendAt !== undefined) {
       await this.queue.reschedule(updated);
     }
     return this.toResponse(updated);
   }
 
-  /** Cancel a card (removes it and its queued job). */
+  /** Cancel a card (removes it and its queued job). Not allowed mid-send. */
   async remove(userId: string, id: string): Promise<void> {
-    const { count } = await this.prisma.card.deleteMany({
-      where: { id, userId },
+    await this.prisma.$transaction(async (tx) => {
+      const locked = await this.lockCard(tx, id, userId);
+      if (!locked) throw new NotFoundException(`Card ${id} not found`);
+      if (locked.status === 'SENDING') {
+        throw new ConflictException(
+          `Card is being sent and can't be cancelled`,
+        );
+      }
+      await tx.card.delete({ where: { id } });
     });
-    if (count === 0) throw new NotFoundException(`Card ${id} not found`);
     await this.queue.remove(id);
   }
 
   /** Re-queue a FAILED card to send again immediately. */
   async retry(userId: string, id: string): Promise<CardResponse> {
-    const card = await this.prisma.card.findFirst({ where: { id, userId } });
-    if (!card) throw new NotFoundException(`Card ${id} not found`);
-    if (card.status !== 'FAILED') {
-      throw new ConflictException(`Only FAILED cards can be retried`);
-    }
-    const updated = await this.prisma.card.update({
-      where: { id },
-      data: { status: 'PENDING', error: null, attempts: 0, sendAt: new Date() },
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const locked = await this.lockCard(tx, id, userId);
+      if (!locked) throw new NotFoundException(`Card ${id} not found`);
+      if (locked.status !== 'FAILED') {
+        throw new ConflictException(`Only FAILED cards can be retried`);
+      }
+      return tx.card.update({
+        where: { id },
+        data: {
+          status: 'PENDING',
+          error: null,
+          attempts: 0,
+          sendAt: new Date(),
+        },
+      });
     });
     await this.queue.enqueue(updated);
     return this.toResponse(updated);
   }
 
-  /** Load a single card with its owner's email, for the send worker. */
-  async findForSend(id: string): Promise<DueCard | null> {
-    return this.prisma.card.findUnique({
-      where: { id },
-      include: { user: { select: { email: true } } },
-    });
-  }
-
-  /** PENDING cards due on/before `before`, joined with the owner (reconciler). */
-  async findPendingDueSoon(before: Date, take = 500): Promise<DueCard[]> {
+  /**
+   * Cards the reconciler should make sure have a live job: PENDING cards due on
+   * or before `before`, plus SENDING cards whose claim lease has expired (their
+   * worker died mid-send), joined with the owner.
+   */
+  async findDispatchable(before: Date, take = 500): Promise<DueCard[]> {
     return this.prisma.card.findMany({
-      where: { status: 'PENDING', sendAt: { lte: before } },
+      where: {
+        OR: [
+          { status: 'PENDING', sendAt: { lte: before } },
+          {
+            status: 'SENDING',
+            lastAttemptAt: { lt: new Date(Date.now() - this.leaseMs) },
+          },
+        ],
+      },
       orderBy: { sendAt: 'asc' },
       take,
       include: { user: { select: { email: true } } },
@@ -122,31 +176,53 @@ export class CardsService {
   }
 
   /**
-   * Atomically claim a card for sending (PENDING/SENDING → SENDING), bumping the
-   * attempt counter. Returns false when no row matched — i.e. it was already
-   * SENT or cancelled — which the worker treats as the double-send guard.
+   * Claim a card for sending under a row lock and return it *as of the claim*
+   * (so an edit that committed first is what gets sent, and one that arrives
+   * later is rejected as non-PENDING). Returns null when the card is gone, already
+   * sent/failed, or held by another live run — the double-send guard.
+   *
+   * Claimable when PENDING; or SENDING and either this is the job's own retry
+   * (`attempts === attemptsMade`, i.e. its previous attempt failed) or the
+   * previous claim's lease expired. A redelivered "stalled" job whose first run
+   * is still alive matches neither, so it is skipped.
    */
-  async markSending(id: string): Promise<boolean> {
-    const { count } = await this.prisma.card.updateMany({
-      where: { id, status: { in: ['PENDING', 'SENDING'] } },
-      data: {
-        status: 'SENDING',
-        lastAttemptAt: new Date(),
-        attempts: { increment: 1 },
-      },
+  async claimForSend(
+    id: string,
+    attemptsMade: number,
+  ): Promise<DueCard | null> {
+    return this.prisma.$transaction(async (tx) => {
+      const locked = await this.lockCard(tx, id);
+      if (!locked) return null;
+      const leaseExpired =
+        locked.lastAttemptAt !== null &&
+        locked.lastAttemptAt.getTime() < Date.now() - this.leaseMs;
+      const claimable =
+        locked.status === 'PENDING' ||
+        (locked.status === 'SENDING' &&
+          (locked.attempts === attemptsMade || leaseExpired));
+      if (!claimable) return null;
+      return tx.card.update({
+        where: { id },
+        data: {
+          status: 'SENDING',
+          lastAttemptAt: new Date(),
+          attempts: { increment: 1 },
+        },
+        include: { user: { select: { email: true } } },
+      });
     });
-    return count > 0;
   }
 
   async markSent(id: string): Promise<void> {
-    await this.prisma.card.update({
+    // updateMany: a no-op (not a throw) if the card was deleted meanwhile.
+    await this.prisma.card.updateMany({
       where: { id },
       data: { status: 'SENT', sentAt: new Date(), error: null },
     });
   }
 
   async markFailed(id: string, error: string): Promise<void> {
-    await this.prisma.card.update({
+    await this.prisma.card.updateMany({
       where: { id },
       data: { status: 'FAILED', error: error.slice(0, 500) },
     });

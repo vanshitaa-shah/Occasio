@@ -11,6 +11,7 @@ import {
 
 const DEFAULT_MAX_ATTEMPTS = 3;
 const DEFAULT_BACKOFF_MS = 30_000;
+const FINISHED_STATES = new Set(['failed', 'completed']);
 
 /**
  * The enqueue seam. Owns the BullMQ `card-send` queue and turns card lifecycle
@@ -34,6 +35,13 @@ export class CardQueueService implements OnModuleDestroy {
 
   /** Schedule a card to send at its `sendAt` (immediately if already due). */
   async enqueue(card: Pick<Card, 'id' | 'sendAt'>): Promise<void> {
+    // BullMQ silently ignores `add()` while a job with the same id still exists,
+    // and finished jobs are retained (removeOnFail). Clear a finished one first,
+    // otherwise a retried card would never get a live job.
+    const existing = await this.queue.getJob(card.id);
+    if (existing && FINISHED_STATES.has(await existing.getState())) {
+      await existing.remove().catch(() => undefined);
+    }
     const delay = Math.max(0, card.sendAt.getTime() - Date.now());
     await this.queue.add(
       SEND_JOB,
@@ -66,9 +74,14 @@ export class CardQueueService implements OnModuleDestroy {
     await job?.remove().catch(() => undefined);
   }
 
-  /** Whether a job for this card currently exists in the queue (reconciler). */
+  /**
+   * Whether a live (not yet finished) job exists for this card — used by the
+   * reconciler. A retained failed/completed job doesn't count: it will never run.
+   */
   async has(cardId: string): Promise<boolean> {
-    return (await this.queue.getJob(cardId)) !== undefined;
+    const job = await this.queue.getJob(cardId);
+    if (!job) return false;
+    return !FINISHED_STATES.has(await job.getState());
   }
 
   async onModuleDestroy(): Promise<void> {

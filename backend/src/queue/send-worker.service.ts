@@ -59,14 +59,10 @@ export class SendWorkerService
 
   private async process(job: Job<SendJobData>): Promise<void> {
     const { cardId } = job.data;
-    const card = await this.cards.findForSend(cardId);
-    // Card was deleted (cancelled) before its job ran — nothing to do.
+    // Claim under a row lock; returns the card as of the claim, or null if it
+    // was cancelled, already sent, or is held by another live run (double-send guard).
+    const card = await this.cards.claimForSend(cardId, job.attemptsMade);
     if (!card) return;
-
-    // Atomically claim it (PENDING/SENDING → SENDING). count === 0 means it was
-    // already sent or cancelled by another worker/instance — the double-send guard.
-    const claimed = await this.cards.markSending(cardId);
-    if (!claimed) return;
 
     try {
       const png = await this.render.render(
