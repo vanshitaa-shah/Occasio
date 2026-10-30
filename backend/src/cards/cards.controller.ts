@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Delete,
+  NotFoundException,
   Get,
   HttpCode,
   Param,
@@ -27,6 +28,12 @@ export class CardsController {
     @Body() body: CreateCardBody,
   ): Promise<CardResponse> {
     return this.cards.create(user.userId, body);
+  }
+
+  @Post('dev/failed')
+  createFailedDemo(@CurrentUser() user: AuthedUser): Promise<CardResponse> {
+    if (process.env.NODE_ENV === 'production') throw new NotFoundException();
+    return this.cards.createFailedDemo(user.userId);
   }
 
   @Get()

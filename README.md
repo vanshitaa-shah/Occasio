@@ -12,7 +12,7 @@ Design a greeting card on a canvas, schedule it, and have it **emailed as an ima
 
 ## Run it
 
-Needs Node >= 22.22.3, pnpm >= 10, and Docker.
+Needs Node >= 22.22.3 (`nvm use` reads `.nvmrc`), pnpm >= 10, and Docker.
 
 ```bash
 pnpm install

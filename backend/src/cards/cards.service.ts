@@ -6,7 +6,12 @@ import {
   ConflictException,
 } from '@nestjs/common';
 import { Prisma, type Card, type CardStatus } from '@prisma/client';
-import type { CanvasDesign, CardResponse } from '@occasio/shared';
+import {
+  createDefaultDesign,
+  DEMO_RECIPIENT,
+  type CanvasDesign,
+  type CardResponse,
+} from '@occasio/shared';
 import { PrismaService } from '../prisma/prisma.service';
 import { CardQueueService } from '../queue/card-queue.service';
 import { CreateCardBody } from './dto/create-card.dto';
@@ -50,6 +55,25 @@ export class CardsService {
       },
     });
     await this.queue.enqueue(card);
+    return this.toResponse(card);
+  }
+
+  async createFailedDemo(userId: string): Promise<CardResponse> {
+    const design = createDefaultDesign();
+    design.texts[0].text = 'Failed demo card';
+    design.texts[1].text = 'Retry me';
+    const card = await this.prisma.card.create({
+      data: {
+        userId,
+        recipient: DEMO_RECIPIENT,
+        sendAt: new Date(),
+        design: design as unknown as Prisma.InputJsonValue,
+        status: 'FAILED',
+        error: 'Demo failure: simulated send error',
+        attempts: 3,
+        lastAttemptAt: new Date(),
+      },
+    });
     return this.toResponse(card);
   }
 

@@ -62,6 +62,8 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(body),
     }),
+  createFailedDemoCard: () =>
+    request<CardResponse>('/cards/dev/failed', { method: 'POST' }),
   listCards: () => request<CardResponse[]>('/cards'),
   getCard: (id: string) => request<CardResponse>(`/cards/${id}`),
   updateCard: (id: string, body: UpdateCardDto) =>

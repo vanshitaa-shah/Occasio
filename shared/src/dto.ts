@@ -52,3 +52,5 @@ export interface CardResponse {
   /** Number of send attempts made so far (increments each worker pickup). */
   attempts: number;
 }
+
+export const DEMO_RECIPIENT = "friend@yopmail.com";

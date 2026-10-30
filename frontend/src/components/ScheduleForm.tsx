@@ -1,5 +1,6 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import type { CanvasDesign } from '@occasio/shared';
+import { createDemoCards } from '../lib/demoCards';
 import {
   useScheduleCard,
   type ScheduleEditing,
@@ -22,7 +23,24 @@ export function ScheduleForm({
   const { recipient, setRecipient, sendAt, setSendAt, status, submit, isEditing } =
     useScheduleCard(design, editing, onSaved);
 
+  const [demo, setDemo] = useState<
+    { kind: 'idle' | 'adding' | 'done' } | { kind: 'error'; message: string }
+  >({ kind: 'idle' });
   const submitting = status.kind === 'submitting';
+  const addingDemo = demo.kind === 'adding';
+
+  const addDemoCards = async () => {
+    setDemo({ kind: 'adding' });
+    try {
+      await createDemoCards();
+      setDemo({ kind: 'done' });
+    } catch (err) {
+      setDemo({
+        kind: 'error',
+        message: err instanceof Error ? err.message : 'Failed to add demo cards.',
+      });
+    }
+  };
   useEffect(() => onSubmittingChange?.(submitting), [submitting, onSubmittingChange]);
   const label = isEditing
     ? submitting
@@ -35,7 +53,7 @@ export function ScheduleForm({
   return (
     <form onSubmit={submit}>
       {/* A disabled fieldset disables every field + the button while saving. */}
-      <fieldset disabled={submitting} className="min-w-0 space-y-4">
+      <fieldset disabled={submitting || addingDemo} className="min-w-0 space-y-4">
       <label className="block text-sm">
         <span className="mb-1 block text-slate-600">Recipient email</span>
         <input
@@ -58,6 +76,26 @@ export function ScheduleForm({
           className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-400 focus:outline-hidden disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400"
         />
       </label>
+
+      {import.meta.env.DEV && (
+        <button
+          type="button"
+          onClick={() => void addDemoCards()}
+          className="w-full rounded-lg border border-dashed border-amber-400 bg-amber-50 px-3 py-2 text-sm text-amber-700 hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {addingDemo ? 'Adding…' : 'Add 10 demo cards'}
+        </button>
+      )}
+      {demo.kind === 'done' && (
+        <p className="rounded-lg bg-green-50 px-3 py-2 text-sm text-green-700">
+          Added 10 demo cards. See them under Scheduled.
+        </p>
+      )}
+      {demo.kind === 'error' && (
+        <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
+          {demo.message}
+        </p>
+      )}
 
       <button
         type="submit"

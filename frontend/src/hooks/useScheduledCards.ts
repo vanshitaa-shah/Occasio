@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { CardResponse } from '@occasio/shared';
 import { api } from '../lib/api';
+import { createDemoCards } from '../lib/demoCards';
 
 /**
  * Loads the scheduled cards and exposes cancel / retry / edit actions, each of
@@ -43,5 +44,37 @@ export function useScheduledCards() {
     [refresh],
   );
 
-  return { cards, loading, error, refresh, cancel, retry };
+  const addDemoCards = useCallback(
+    async () => {
+      try {
+        await createDemoCards();
+        setError(null);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to add demo cards.');
+      }
+      await refresh();
+    },
+    [refresh],
+  );
+
+  const addFailedDemoCard = useCallback(async () => {
+    try {
+      await api.createFailedDemoCard();
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to add failed card.');
+    }
+    await refresh();
+  }, [refresh]);
+
+  return {
+    cards,
+    loading,
+    error,
+    refresh,
+    cancel,
+    retry,
+    addDemoCards,
+    addFailedDemoCard,
+  };
 }
