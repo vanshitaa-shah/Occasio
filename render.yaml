@@ -17,6 +17,8 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
+      - key: NODE_OPTIONS
+        value: --no-network-family-autoselection
       # Session signing secret — Render generates a strong value.
       - key: JWT_SECRET
         generateValue: true
