@@ -77,15 +77,13 @@ export function ScheduleForm({
         />
       </label>
 
-      {import.meta.env.DEV && (
-        <button
-          type="button"
-          onClick={() => void addDemoCards()}
-          className="w-full rounded-lg border border-dashed border-amber-400 bg-amber-50 px-3 py-2 text-sm text-amber-700 hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          {addingDemo ? 'Adding…' : 'Add 10 demo cards'}
-        </button>
-      )}
+      <button
+        type="button"
+        onClick={() => void addDemoCards()}
+        className="w-full rounded-lg border border-dashed border-amber-400 bg-amber-50 px-3 py-2 text-sm text-amber-700 hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-50"
+      >
+        {addingDemo ? 'Adding…' : 'Add 10 demo cards'}
+      </button>
       {demo.kind === 'done' && (
         <p className="rounded-lg bg-green-50 px-3 py-2 text-sm text-green-700">
           Added 10 demo cards. See them under Scheduled.

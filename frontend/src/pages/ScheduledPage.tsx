@@ -49,16 +49,14 @@ export function ScheduledPage() {
                 Add failed card
               </button>
             )}
-            {import.meta.env.DEV && (
-              <button
-                type="button"
-                disabled={addingDemo}
-                onClick={() => void onAddDemo()}
-                className="rounded-lg border border-dashed border-amber-400 bg-amber-50 px-3 py-1.5 text-sm text-amber-700 hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {addingDemo ? 'Adding…' : 'Add 10 demo cards'}
-              </button>
-            )}
+            <button
+              type="button"
+              disabled={addingDemo}
+              onClick={() => void onAddDemo()}
+              className="rounded-lg border border-dashed border-amber-400 bg-amber-50 px-3 py-1.5 text-sm text-amber-700 hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {addingDemo ? 'Adding…' : 'Add 10 demo cards'}
+            </button>
             <button
               type="button"
               onClick={() => void refresh()}
