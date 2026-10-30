@@ -47,6 +47,7 @@ export function useScheduleCard(
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
+    if (status.kind === 'submitting') return;
     const when = new Date(sendAt);
     if (Number.isNaN(when.getTime())) {
       setStatus({ kind: 'error', message: 'Pick a valid date and time.' });

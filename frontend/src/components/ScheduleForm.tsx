@@ -24,7 +24,9 @@ export function ScheduleForm({ design, editing, onSaved }: ScheduleFormProps) {
       : 'Schedule card';
 
   return (
-    <form onSubmit={submit} className="space-y-4">
+    <form onSubmit={submit}>
+      {/* A disabled fieldset disables every field + the button while saving. */}
+      <fieldset disabled={submitting} className="min-w-0 space-y-4">
       <label className="block text-sm">
         <span className="mb-1 block text-slate-600">Recipient email</span>
         <input
@@ -33,7 +35,7 @@ export function ScheduleForm({ design, editing, onSaved }: ScheduleFormProps) {
           value={recipient}
           onChange={(e) => setRecipient(e.target.value)}
           placeholder="friend@example.com"
-          className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-400 focus:outline-hidden"
+          className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-400 focus:outline-hidden disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400"
         />
       </label>
 
@@ -44,14 +46,13 @@ export function ScheduleForm({ design, editing, onSaved }: ScheduleFormProps) {
           required
           value={sendAt}
           onChange={(e) => setSendAt(e.target.value)}
-          className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-400 focus:outline-hidden"
+          className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-400 focus:outline-hidden disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400"
         />
       </label>
 
       <button
         type="submit"
-        disabled={submitting}
-        className="w-full rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white transition hover:bg-blue-700 disabled:opacity-50"
+        className="w-full rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
       >
         {label}
       </button>
@@ -61,6 +62,7 @@ export function ScheduleForm({ design, editing, onSaved }: ScheduleFormProps) {
           {status.message}
         </p>
       )}
+      </fieldset>
     </form>
   );
 }
