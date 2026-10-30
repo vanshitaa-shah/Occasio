@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import * as nodemailer from 'nodemailer';
 import type { Transporter } from 'nodemailer';
 
@@ -28,7 +28,7 @@ const BREVO_API_URL = 'https://api.brevo.com/v3/smtp/email';
  * lives in the rendered card image instead.
  */
 @Injectable()
-export class MailService {
+export class MailService implements OnModuleInit {
   private readonly logger = new Logger(MailService.name);
   private readonly from =
     process.env.SMTP_FROM ?? 'Occasio <no-reply@occasio.local>';
@@ -48,6 +48,13 @@ export class MailService {
             }
           : {}),
       });
+
+  onModuleInit(): void {
+    const via = this.brevoApiKey
+      ? 'Brevo HTTP API'
+      : `SMTP ${process.env.SMTP_HOST ?? 'localhost'}:${process.env.SMTP_PORT ?? 1025}`;
+    this.logger.log(`Mail transport: ${via}, from ${this.from}`);
+  }
 
   async sendCard({
     to,
