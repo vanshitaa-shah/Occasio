@@ -20,7 +20,7 @@ export function TextEditor({ el, onChange }: TextEditorProps) {
           value={el.text}
           onChange={(e) => onChange({ text: e.target.value })}
           rows={2}
-          className="w-full rounded-lg border border-slate-200 px-2 py-1 text-sm focus:border-blue-400 focus:outline-none"
+          className="w-full rounded-lg border border-slate-200 px-2 py-1 text-sm focus:border-blue-400 focus:outline-hidden"
         />
       </label>
 

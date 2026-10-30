@@ -33,7 +33,7 @@ export function ScheduleForm({ design, editing, onSaved }: ScheduleFormProps) {
           value={recipient}
           onChange={(e) => setRecipient(e.target.value)}
           placeholder="friend@example.com"
-          className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-400 focus:outline-none"
+          className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-400 focus:outline-hidden"
         />
       </label>
 
@@ -44,7 +44,7 @@ export function ScheduleForm({ design, editing, onSaved }: ScheduleFormProps) {
           required
           value={sendAt}
           onChange={(e) => setSendAt(e.target.value)}
-          className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-400 focus:outline-none"
+          className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-400 focus:outline-hidden"
         />
       </label>
 

@@ -70,7 +70,7 @@ export function EditorPage() {
           <span>
             Editing scheduled card → <strong>{editing.recipient}</strong>
           </span>
-          <Link to="/" className="rounded px-2 py-1 text-blue-700 hover:bg-blue-100">
+          <Link to="/" className="rounded-sm px-2 py-1 text-blue-700 hover:bg-blue-100">
             Start a new card
           </Link>
         </div>

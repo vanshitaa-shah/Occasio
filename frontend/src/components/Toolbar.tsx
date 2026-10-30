@@ -30,7 +30,7 @@ export function Toolbar({ theme, onThemeChange, onAddShape }: ToolbarProps) {
               }`}
             >
               <span
-                className="block h-8 w-full rounded"
+                className="block h-8 w-full rounded-sm"
                 style={{
                   background: `linear-gradient(135deg, ${t.from}, ${t.to})`,
                 }}

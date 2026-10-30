@@ -47,7 +47,7 @@ export function ScheduledCard({ card, onCancel, onRetry }: ScheduledCardProps) {
         <p className="text-xs text-slate-600">{formatWhen(card.sendAt)}</p>
 
         {isFailed && card.error && (
-          <p className="rounded bg-red-50 px-2 py-1 text-xs text-red-600">
+          <p className="rounded-sm bg-red-50 px-2 py-1 text-xs text-red-600">
             {card.error}
             {card.attempts > 0 && (
               <span className="block text-red-400">
@@ -66,7 +66,7 @@ export function ScheduledCard({ card, onCancel, onRetry }: ScheduledCardProps) {
               <button
                 type="button"
                 onClick={() => navigate(`/?edit=${card.id}`)}
-                className="rounded border border-slate-200 px-2 py-1 text-xs text-slate-600 hover:bg-slate-50"
+                className="rounded-sm border border-slate-200 px-2 py-1 text-xs text-slate-600 hover:bg-slate-50"
               >
                 Edit
               </button>
@@ -75,7 +75,7 @@ export function ScheduledCard({ card, onCancel, onRetry }: ScheduledCardProps) {
               <button
                 type="button"
                 onClick={() => onRetry(card.id)}
-                className="rounded border border-blue-200 px-2 py-1 text-xs text-blue-600 hover:bg-blue-50"
+                className="rounded-sm border border-blue-200 px-2 py-1 text-xs text-blue-600 hover:bg-blue-50"
               >
                 Retry
               </button>
@@ -83,7 +83,7 @@ export function ScheduledCard({ card, onCancel, onRetry }: ScheduledCardProps) {
             <button
               type="button"
               onClick={confirmCancel}
-              className="rounded border border-red-200 px-2 py-1 text-xs text-red-600 hover:bg-red-50"
+              className="rounded-sm border border-red-200 px-2 py-1 text-xs text-red-600 hover:bg-red-50"
             >
               {isPending ? 'Cancel' : 'Remove'}
             </button>
